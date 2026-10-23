@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import Image from "next/image";
 import { Navbar } from "@/components/navbar/Navbar";
 import { KanbanFilterBar } from "@/components/filters/KanbanFilterBar";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
@@ -500,11 +501,21 @@ export default function TaskMasterPage() {
   if (isLoading) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">
-            Loading TaskMaster Board & Hierarchy...
-          </p>
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl overflow-hidden shadow-xl shadow-primary/20 bg-background border border-border/50 animate-pulse">
+            <Image
+              src="/logo.png"
+              alt="TaskMaster Logo"
+              width={56}
+              height={56}
+              className="h-full w-full object-contain p-1"
+              priority
+            />
+          </div>
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <span>Loading TaskMaster Board &amp; Hierarchy...</span>
+          </div>
         </div>
       </div>
     );

@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: "TaskMaster - Team Kanban & Sprint Manager",
   description:
     "Production-ready single-page task management application powered by Next.js App Router, Supabase PostgreSQL, and @dnd-kit.",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

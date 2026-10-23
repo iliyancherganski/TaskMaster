@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import {
-  CheckSquare2,
   Plus,
   Database as DatabaseIcon,
   Copy,
@@ -68,8 +68,15 @@ export function Navbar({
           {/* Logo & Brand + Top Menu Bar Project Selector */}
           <div className="flex items-center gap-4 min-w-0">
             <div className="flex items-center gap-3 shrink-0">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/25">
-                <CheckSquare2 className="h-5 w-5" />
+              <div className="relative flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden shadow-md shadow-primary/20 bg-background border border-border/60">
+                <Image
+                  src="/logo.png"
+                  alt="TaskMaster Logo"
+                  width={36}
+                  height={36}
+                  className="h-full w-full object-contain p-0.5"
+                  priority
+                />
               </div>
               <div>
                 <div className="flex items-center gap-2">
