@@ -14,6 +14,7 @@ import {
   ImageIcon,
   ExternalLink,
   FolderKanban,
+  BookOpen,
 } from "lucide-react";
 import { TaskWithDetails, Status } from "@/types/database.types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -394,6 +395,17 @@ export function KanbanCard({
               >
                 <Paperclip className="h-3.5 w-3.5" />
                 <span>{totalAttachments}</span>
+              </span>
+            )}
+
+            {/* Linked Educational Materials Count */}
+            {task.educational_materials && task.educational_materials.length > 0 && (
+              <span
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors"
+                title={`${task.educational_materials.length} educational material(s) linked`}
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                <span>{task.educational_materials.length}</span>
               </span>
             )}
           </div>

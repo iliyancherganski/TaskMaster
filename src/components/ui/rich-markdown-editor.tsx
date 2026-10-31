@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   Bold,
   Italic,
@@ -22,9 +22,15 @@ import {
   Eye,
   Edit3,
   Minus,
+  Link2,
+  Check,
+  Sparkles,
+  ChevronDown,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -62,6 +68,103 @@ const HIGHLIGHT_COLORS = [
   { name: "Purple", bg: "#e9d5ff", text: "#581c87", label: "Purple" },
 ];
 
+const TASK_DOCS_PROMPT = `Act strictly as a Markdown formatter for TaskMaster. Reformat the text into clean, structured Markdown matching the exact specification below.
+
+CRITICAL RULES:
+- DO NOT invent, assume, or add new facts, tasks, or requirements.
+- DO NOT summarize or omit any existing details.
+- Preserve 100% of the original information, technical names, and numbers exactly as written.
+- Output ONLY the formatted Markdown. No intro, no greeting, no conversational text.
+
+EXACT FORMAT SPECIFICATION:
+1. Headings & Spacing:
+   - Primary sections: '## Section Name' (two hashes, space, Title Case).
+   - Subsections: '### Subsection Name' (three hashes, space).
+   - Exactly ONE empty line before each heading and after each block.
+
+2. Metadata & Properties:
+   - Format single key-value properties as: '**Key:** Value' (e.g., '**Deadline:** Friday 5:00 PM', '**Software:** \`Blender 4.2\`').
+
+3. Checklists (Action Items & Tasks):
+   - Any statement expressing an action to take (e.g., "export", "bake", "fix", "check", "need to", "create", "clean up") must be formatted as:
+     - [ ] Action item with \`code\` for values/files and **bold** for key tools/targets.
+     (Example: '- [ ] Export high-poly mesh from **ZBrush** to \`character.fbx\`')
+
+4. Bullet Lists:
+   - Use '- ' for unordered items.
+   - For sub-items, indent by 2 spaces: '  - Sub-item detail'.
+   - Do NOT leave blank lines between consecutive list items.
+
+5. Backticks (\`inline code\`):
+   - Wrap strictly with single backticks:
+     * File names & extensions: \`model.fbx\`, \`T_Albedo.png\`, \`/assets/\`
+     * Hotkeys & shortcuts: \`Ctrl+B\`, \`Shift+A\`
+     * Parameters, resolution & numbers: \`4096x4096\`, \`UDIM 1001-1004\`, \`0.05\`
+     * Software tools, nodes & shaders: \`Nanite\`, \`Lumen\`, \`Principled BSDF\`
+
+6. Tables:
+   - If comparing items, properties, or specs, format as a clean Markdown table:
+     | Property | Value | Notes |
+     | :--- | :--- | :--- |
+
+TARGET BLUEPRINT:
+## [Topic / Section]
+**[Property]:** Value
+
+Brief contextual sentence from original text.
+
+### [Details / Subtopic]
+- Note with **key term** and \`parameter\`.
+  - Nested detail.
+
+## [Tasks / Action Items]
+- [ ] Task 1
+- [ ] Task 2`;
+
+const IMAGE_DOCS_PROMPT = `Act strictly as a Markdown formatter for TaskMaster image and artwork descriptions. Reformat the text into clean, structured Markdown matching the exact specification below.
+
+CRITICAL RULES:
+- DO NOT invent, assume, or add new visual elements, feedback, or details.
+- DO NOT omit any visual critique, settings, or specs.
+- Preserve 100% of the original content and terminology exactly as written.
+- Output ONLY the formatted Markdown. No intro, no greeting, no conversational text.
+
+EXACT FORMAT SPECIFICATION:
+1. Headings & Spacing:
+   - Use '## ' for primary sections (e.g., '## Overview', '## Visual Feedback', '## Revisions', '## Technical Settings').
+   - Exactly ONE empty line between sections.
+
+2. Visual Notes & Critique:
+   - Group observations by topic: '- **Area/Aspect:** Observation and critique'.
+   - Bold focal points, lighting directions, materials, and colors with **bold**.
+
+3. Revision Items (Checklist):
+   - Any requested changes, fixes, or polish items must be formatted as:
+     - [ ] Specific fix or revision item (e.g., '- [ ] Increase specular roughness on leather armor')
+
+4. Technical Settings & Specifications:
+   - Format tools, camera, and render settings using \`inline code\`:
+     * Software & renderer: \`Blender Cycles\`, \`Unreal Engine 5.4\`, \`Substance Painter\`
+     * Camera parameters: \`50mm\`, \`f/2.8\`, \`ISO 100\`, \`1920x1080\`
+     * Material / Shader values: \`Roughness 0.35\`, \`Metallic 1.0\`
+   - Use key-value format: '**Resolution:** \`4096x4096\`'.
+
+TARGET BLUEPRINT:
+## Overview
+Brief concept or subject summary.
+
+## Visual Feedback
+- **Lighting:** Key light and shadow notes.
+- **Materials:** Texture, shader, and color observations.
+
+## Revisions
+- [ ] Polish item 1
+- [ ] Fix item 2
+
+## Technical Settings
+- **Software:** \`Blender 4.2\` / \`Cycles\`
+- **Resolution:** \`3840x2160\``;
+
 export function RichMarkdownEditor({
   value,
   onChange,
@@ -73,6 +176,124 @@ export function RichMarkdownEditor({
 }: RichMarkdownEditorProps) {
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Hyperlink Popover state
+  const [isLinkPopoverOpen, setIsLinkPopoverOpen] = useState(false);
+  const [linkText, setLinkText] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkFormat, setLinkFormat] = useState<"markdown" | "html">("markdown");
+  const [linkSelection, setLinkSelection] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
+
+  // AI Reformatting Prompt state
+  const isImageEditor = placeholder.toLowerCase().includes("image");
+  const [aiPromptType, setAiPromptType] = useState<"task" | "image">(
+    isImageEditor ? "image" : "task"
+  );
+  const [aiTarget, setAiTarget] = useState<"docs" | "chat">("docs");
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+
+  const getFullPrompt = (
+    type: "task" | "image" = aiPromptType,
+    target: "docs" | "chat" = aiTarget
+  ) => {
+    const basePrompt = type === "image" ? IMAGE_DOCS_PROMPT : TASK_DOCS_PROMPT;
+    if (target === "docs") {
+      // In Google Docs: user selects text and clicks "Help me write". Pure instructions prevent Gemini from hallucinating or inserting placeholders.
+      return basePrompt;
+    }
+    const textarea = textareaRef.current;
+    let selected = "";
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      selected = textarea.value.substring(start, end).trim();
+    }
+    return `${basePrompt}\n\n--- TEXT TO REFORMAT ---\n${selected || "[Paste your raw text or draft notes here]"}`;
+  };
+
+  const handleCopyAiPrompt = async (targetOverride?: "docs" | "chat") => {
+    try {
+      const textToCopy = getFullPrompt(aiPromptType, targetOverride || aiTarget);
+      await navigator.clipboard.writeText(textToCopy);
+      setCopiedPrompt(true);
+      setTimeout(() => setCopiedPrompt(false), 2500);
+    } catch (err) {
+      console.error("Failed to copy AI prompt:", err);
+    }
+  };
+
+  // Auto-resize textarea to fit full content without internal scrollbars
+  const adjustHeight = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    const min = parseInt(minHeight) || 160;
+    const targetHeight = Math.max(textarea.scrollHeight, min);
+    textarea.style.height = `${targetHeight}px`;
+  };
+
+  useEffect(() => {
+    if (activeTab === "write") {
+      requestAnimationFrame(adjustHeight);
+    }
+  }, [value, activeTab]);
+
+  // Open Link popover and record current selection
+  const handleOpenLinkPopover = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selected = textarea.value.substring(start, end);
+      setLinkSelection({ start, end });
+      setLinkText(selected || "");
+      if (selected.startsWith("http://") || selected.startsWith("https://")) {
+        setLinkUrl(selected);
+      } else {
+        setLinkUrl("");
+      }
+    }
+    setIsLinkPopoverOpen(true);
+  };
+
+  // Insert or wrap with Hyperlink (either [text](url) or <a href="url">text</a>)
+  const handleApplyLink = () => {
+    let cleanUrl = linkUrl.trim();
+    if (!cleanUrl) return;
+    if (
+      !cleanUrl.startsWith("http://") &&
+      !cleanUrl.startsWith("https://") &&
+      !cleanUrl.startsWith("mailto:") &&
+      !cleanUrl.startsWith("#")
+    ) {
+      cleanUrl = `https://${cleanUrl}`;
+    }
+
+    const displayText = linkText.trim() || cleanUrl;
+    const snippet =
+      linkFormat === "html"
+        ? `<a href="${cleanUrl}">${displayText}</a>`
+        : `[${displayText}](${cleanUrl})`;
+
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const { start, end } = linkSelection;
+      const text = textarea.value;
+      const nextVal = text.substring(0, start) + snippet + text.substring(end);
+      onChange(nextVal);
+
+      setIsLinkPopoverOpen(false);
+      requestAnimationFrame(() => {
+        textarea.focus();
+        const newPos = start + snippet.length;
+        textarea.setSelectionRange(newPos, newPos);
+        adjustHeight();
+      });
+    } else {
+      onChange((value ? value + " " : "") + snippet);
+      setIsLinkPopoverOpen(false);
+    }
+  };
 
   // Helper to wrap selected text with markdown/HTML syntax
   const wrapSelection = (before: string, after: string, defaultPlaceholder = "text") => {
@@ -95,6 +316,7 @@ export function RichMarkdownEditor({
         start + before.length,
         start + before.length + selectedText.length
       );
+      adjustHeight();
     });
   };
 
@@ -121,6 +343,7 @@ export function RichMarkdownEditor({
       requestAnimationFrame(() => {
         textarea.focus();
         textarea.setSelectionRange(lineStart + prefix.length, lineStart + newLine.length);
+        adjustHeight();
       });
       return;
     }
@@ -136,6 +359,7 @@ export function RichMarkdownEditor({
     requestAnimationFrame(() => {
       textarea.focus();
       textarea.setSelectionRange(start, start + formatted.length);
+      adjustHeight();
     });
   };
 
@@ -155,6 +379,7 @@ export function RichMarkdownEditor({
       textarea.focus();
       const newPos = start + snippet.length;
       textarea.setSelectionRange(newPos, newPos);
+      adjustHeight();
     });
   };
 
@@ -164,27 +389,69 @@ export function RichMarkdownEditor({
     insertSnippet(tableTemplate);
   };
 
-  // Keyboard shortcut listener
+  // Keyboard shortcut listener that works across all languages and keyboard layouts (including Bulgarian Phonetic & BDS)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.ctrlKey || e.metaKey) {
-      if (e.key === "b" || e.key === "B") {
+      const code = e.code;
+      const key = e.key.toLowerCase();
+
+      // Bold: physical KeyB OR character 'b' or Bulgarian 'б' or 'ф'
+      if (code === "KeyB" || key === "b" || key === "б" || key === "ф") {
         e.preventDefault();
         wrapSelection("**", "**", "bold text");
-      } else if (e.key === "i" || e.key === "I") {
+      }
+      // Italic: physical KeyI OR character 'i' or Bulgarian 'и' or 'ш'
+      else if (code === "KeyI" || key === "i" || key === "и" || key === "ш") {
         e.preventDefault();
         wrapSelection("*", "*", "italic text");
-      } else if (e.key === "u" || e.key === "U") {
+      }
+      // Underline: physical KeyU OR character 'u' or Bulgarian 'у' or 'г'
+      else if (code === "KeyU" || key === "u" || key === "у" || key === "г") {
         e.preventDefault();
         wrapSelection("<u>", "</u>", "underlined text");
-      } else if (e.key === "Enter" && onSave) {
+      }
+      // Hyperlink: physical KeyK OR character 'k' or Bulgarian 'к' or 'в'
+      else if (code === "KeyK" || key === "k" || key === "к" || key === "в") {
         e.preventDefault();
-        onSave();
+        handleOpenLinkPopover();
+      }
+      // Save on Ctrl+Enter (handles all layouts, key codes, and numpad)
+      else if (
+        key === "enter" ||
+        code === "Enter" ||
+        code === "NumpadEnter" ||
+        e.keyCode === 13 ||
+        e.which === 13
+      ) {
+        if (onSave) {
+          e.preventDefault();
+          e.stopPropagation();
+          onSave();
+        }
       }
     }
   };
 
   return (
-    <div className={`rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs ${className}`}>
+    <div
+      className={`rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs ${className}`}
+      onKeyDown={(e) => {
+        if (
+          (e.ctrlKey || e.metaKey) &&
+          (e.key?.toLowerCase() === "enter" ||
+            e.code === "Enter" ||
+            e.code === "NumpadEnter" ||
+            e.keyCode === 13 ||
+            e.which === 13)
+        ) {
+          if (onSave) {
+            e.preventDefault();
+            e.stopPropagation();
+            onSave();
+          }
+        }
+      }}
+    >
       {/* Top Formatting Toolbar & Write/Preview Toggle */}
       <div className="flex flex-wrap items-center justify-between gap-1 p-2 bg-muted/40 border-b border-border/70 select-none">
         {/* Left Formatting Action Buttons (Word-like Toolbar) */}
@@ -223,7 +490,7 @@ export function RichMarkdownEditor({
             </Button>
           </div>
 
-          {/* Bold, Italic, Underline */}
+          {/* Bold, Italic, Underline, Hyperlink */}
           <div className="flex items-center gap-0.5 px-1 border-r border-border/60">
             <Button
               type="button"
@@ -255,6 +522,110 @@ export function RichMarkdownEditor({
             >
               <Underline className="h-3.5 w-3.5" />
             </Button>
+
+            {/* Hyperlink Tool with Markdown [text](url) and HTML <a href="..."> tag support */}
+            <Popover open={isLinkPopoverOpen} onOpenChange={setIsLinkPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 hover:bg-muted text-muted-foreground hover:text-foreground"
+                  onClick={handleOpenLinkPopover}
+                  title="Insert Hyperlink (Ctrl+K)"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-3 shadow-lg" align="start">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold">Insert Link</span>
+                    <div className="flex items-center gap-1 text-[11px] bg-muted/60 p-0.5 rounded border border-border/40">
+                      <button
+                        type="button"
+                        onClick={() => setLinkFormat("markdown")}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                          linkFormat === "markdown"
+                            ? "bg-background text-foreground shadow-2xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                        title="Markdown format: [text](url)"
+                      >
+                        [Markdown]
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLinkFormat("html")}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                          linkFormat === "html"
+                            ? "bg-background text-foreground shadow-2xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                        title='HTML format: <a href="...">text</a>'
+                      >
+                        &lt;a href&gt;
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-muted-foreground font-medium">Text to display</label>
+                    <Input
+                      value={linkText}
+                      onChange={(e) => setLinkText(e.target.value)}
+                      placeholder="e.g. My Website or Click Here"
+                      className="h-8 text-xs"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleApplyLink();
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-muted-foreground font-medium">URL (href)</label>
+                    <Input
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      placeholder="https://example.com"
+                      className="h-8 text-xs font-mono"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleApplyLink();
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setIsLinkPopoverOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 px-2.5 text-xs gap-1"
+                      onClick={handleApplyLink}
+                      disabled={!linkUrl.trim()}
+                    >
+                      <Check className="h-3 w-3" />
+                      Apply Link
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Text Color Popover */}
@@ -465,32 +836,192 @@ export function RichMarkdownEditor({
           </Button>
         </div>
 
-        {/* Right Mode Switch: Write vs Preview */}
-        <div className="flex items-center gap-1 bg-background/80 p-0.5 rounded-lg border border-border/60">
-          <button
-            type="button"
-            onClick={() => setActiveTab("write")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-              activeTab === "write"
-                ? "bg-primary text-primary-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Edit3 className="h-3 w-3" />
-            <span>Write</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("preview")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-              activeTab === "preview"
-                ? "bg-primary text-primary-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Eye className="h-3 w-3" />
-            <span>Preview</span>
-          </button>
+        {/* Right side: AI Prompt Copy Button & Mode Switch: Write vs Preview */}
+        <div className="flex items-center gap-1.5 ml-auto">
+          {/* AI Reformatting Prompt Copy Button */}
+          <div className="flex items-center rounded-lg border border-border/70 overflow-hidden bg-background/90 shadow-2xs">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleCopyAiPrompt()}
+              className={`h-7 px-2 text-xs gap-1.5 rounded-none border-r border-border/50 transition-all ${
+                copiedPrompt
+                  ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 font-medium"
+                  : "hover:bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+              title="Click to copy AI reformatting prompt (for Google Docs AI / ChatGPT)"
+            >
+              {copiedPrompt ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="font-medium text-xs">AI Prompt</span>
+                </>
+              )}
+            </Button>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-5 rounded-none hover:bg-muted text-muted-foreground hover:text-foreground"
+                  title="View & customize AI Prompt"
+                >
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-88 sm:w-[480px] p-3.5 shadow-2xl" align="end">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between pb-1 border-b border-border/50">
+                    <div className="flex items-center gap-1.5 font-semibold text-xs">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                      <span>AI Reformatting Prompt</span>
+                    </div>
+                    {/* Task vs Image Type Selector */}
+                    <div className="flex items-center gap-1 bg-muted/70 p-0.5 rounded-md border border-border/40 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setAiPromptType("task")}
+                        className={`px-2 py-0.5 rounded font-medium transition-colors ${
+                          aiPromptType === "task"
+                            ? "bg-background text-foreground shadow-2xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Task
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAiPromptType("image")}
+                        className={`px-2 py-0.5 rounded font-medium transition-colors ${
+                          aiPromptType === "image"
+                            ? "bg-background text-foreground shadow-2xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Image
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Target Platform Selector: Google Docs vs Chat AI */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-muted-foreground font-medium">Use with:</span>
+                    <div className="flex items-center gap-1 bg-muted/50 p-0.5 rounded border border-border/40 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setAiTarget("docs")}
+                        className={`px-2 py-0.5 rounded font-medium transition-colors ${
+                          aiTarget === "docs"
+                            ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                        title="For Google Docs 'Help me write' over highlighted text"
+                      >
+                        Google Docs (Help me write)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAiTarget("chat")}
+                        className={`px-2 py-0.5 rounded font-medium transition-colors ${
+                          aiTarget === "chat"
+                            ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                        title="For ChatGPT, Claude, or Gemini Web Chat"
+                      >
+                        Chat (Prompt + Text)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-muted/40 border border-border/50 text-[11px] text-muted-foreground space-y-1">
+                    <div className="font-medium text-foreground text-[10px] uppercase tracking-wider">
+                      {aiTarget === "docs" ? "How to use in Google Docs:" : "How to use in Chat AI:"}
+                    </div>
+                    {aiTarget === "docs" ? (
+                      <ol className="list-decimal list-inside space-y-0.5 text-[10.5px]">
+                        <li>Write or open your notes in Google Docs.</li>
+                        <li>Highlight the text and click <strong>Help me write</strong> (the Gemini pencil).</li>
+                        <li>Paste this copied prompt and click <strong>Create</strong>.</li>
+                      </ol>
+                    ) : (
+                      <p className="text-[10.5px]">
+                        Paste this prompt into ChatGPT, Claude, or Gemini. It instructs the AI with strict anti-hallucination rules to reformat your text.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <textarea
+                      readOnly
+                      value={getFullPrompt(aiPromptType, aiTarget)}
+                      className="w-full h-52 text-[10px] font-mono leading-relaxed p-2.5 rounded-lg bg-muted/20 border border-border/60 text-foreground resize-none focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-border/40">
+                    <span className="text-[10px] text-muted-foreground">
+                      {copiedPrompt ? "Copied to clipboard!" : "Strict zero-hallucination prompt"}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5 px-3.5"
+                      onClick={() => handleCopyAiPrompt(aiTarget)}
+                    >
+                      {copiedPrompt ? (
+                        <>
+                          <Check className="h-3 w-3 text-emerald-500" />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3 w-3" />
+                          <span>Copy Prompt</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Right Mode Switch: Write vs Preview */}
+          <div className="flex items-center gap-1 bg-background/80 p-0.5 rounded-lg border border-border/60">
+            <button
+              type="button"
+              onClick={() => setActiveTab("write")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                activeTab === "write"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Edit3 className="h-3 w-3" />
+              <span>Write</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("preview")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                activeTab === "preview"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Eye className="h-3 w-3" />
+              <span>Preview</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -501,11 +1032,14 @@ export function RichMarkdownEditor({
             ref={textareaRef}
             placeholder={placeholder}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              onChange(e.target.value);
+              adjustHeight();
+            }}
+            onInput={adjustHeight}
             onKeyDown={handleKeyDown}
-            rows={rows}
             style={{ minHeight }}
-            className="border-0 shadow-none focus-visible:ring-0 text-sm leading-relaxed resize-y font-mono"
+            className="border-0 shadow-none focus-visible:ring-0 text-sm leading-relaxed resize-none font-mono overflow-hidden transition-[height] duration-75"
           />
           <div className="flex items-center justify-between px-2 pt-1.5 text-[10px] text-muted-foreground border-t border-border/40">
             <span>
@@ -514,13 +1048,15 @@ export function RichMarkdownEditor({
             <span className="hidden sm:inline">
               Shortcuts: <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+B</kbd> Bold •{" "}
               <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+I</kbd> Italic •{" "}
-              <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+U</kbd> Underline
+              <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+U</kbd> Underline •{" "}
+              <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+K</kbd> Link •{" "}
+              <kbd className="px-1.5 py-0.5 bg-primary/10 text-primary font-semibold rounded border border-primary/20">Ctrl+Enter</kbd> Save
             </span>
           </div>
         </div>
       ) : (
         <div
-          className="p-4 bg-muted/10 overflow-y-auto"
+          className="p-4 bg-muted/10"
           style={{ minHeight }}
         >
           {value.trim() ? (

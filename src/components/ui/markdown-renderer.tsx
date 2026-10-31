@@ -3,7 +3,9 @@
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import rehypeRaw from "rehype-raw";
+import { ExternalLink } from "lucide-react";
 
 interface MarkdownRendererProps {
   content: string;
@@ -18,9 +20,23 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
   return (
     <div className={`prose dark:prose-invert max-w-none text-foreground ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         rehypePlugins={[rehypeRaw]}
         components={{
+          a: ({ node, href, children, ...props }) => {
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary font-medium underline underline-offset-4 decoration-primary/60 hover:text-sky-500 hover:decoration-sky-500 dark:hover:text-sky-400 dark:hover:decoration-sky-400 transition-colors inline-flex items-center gap-0.5 cursor-pointer"
+                {...props}
+              >
+                <span>{children}</span>
+                <ExternalLink className="inline-block h-3 w-3 opacity-75 shrink-0 ml-0.5" />
+              </a>
+            );
+          },
           h1: ({ node, ...props }) => (
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-4 mb-2 pb-1.5 border-b border-border text-foreground" {...props} />
           ),

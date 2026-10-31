@@ -36,9 +36,14 @@ import {
   TaskWithDetails,
   TaskFormData,
   Software,
+  EducationalMaterial,
+  EducationalMaterialWithDetails,
+  StudyGroup,
 } from "@/types/database.types";
 import { createTask, updateTask, deleteTask } from "@/lib/supabase/actions";
 import { getInitials } from "@/lib/utils";
+import { AttachMaterialModal } from "@/components/education/AttachMaterialModal";
+import { getMaterialTypeMeta } from "@/components/education/MaterialModal";
 import {
   Loader2,
   Plus,
@@ -58,6 +63,9 @@ import {
   Laptop,
   Upload,
   AlertTriangle,
+  BookOpen,
+  GraduationCap,
+  ExternalLink,
 } from "lucide-react";
 
 const TYPE_COLORS = [
@@ -84,8 +92,11 @@ interface TaskModalProps {
   taskTypes: TaskType[];
   softwares?: Software[];
   users: User[];
+  allEducationalMaterials?: EducationalMaterialWithDetails[];
+  allStudyGroups?: StudyGroup[];
   onTaskSaved: (savedTask: TaskWithDetails) => void;
   onNavigateToTask?: (taskId: string) => void;
+  onNavigateToEducation?: () => void;
   onCreateTaskType?: (data: { name: string; color: string }) => Promise<TaskType>;
   onDeleteTaskType?: (typeId: string) => Promise<void>;
   onCreateSoftware?: (data: { name: string; icon_url: string }) => Promise<Software>;
@@ -106,8 +117,11 @@ export function TaskModal({
   taskTypes,
   softwares = [],
   users,
+  allEducationalMaterials = [],
+  allStudyGroups = [],
   onTaskSaved,
   onNavigateToTask,
+  onNavigateToEducation,
   onCreateTaskType,
   onDeleteTaskType,
   onCreateSoftware,
@@ -144,6 +158,8 @@ export function TaskModal({
   const [selectedTaskTypeIds, setSelectedTaskTypeIds] = useState<string[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedSoftwareIds, setSelectedSoftwareIds] = useState<string[]>([]);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
+  const [isAttachMaterialOpen, setIsAttachMaterialOpen] = useState(false);
   const [dueDate, setDueDate] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -185,6 +201,7 @@ export function TaskModal({
       setSelectedTaskTypeIds(task.task_types?.map((t) => t.id) || []);
       setSelectedUserIds(task.assignees?.map((u) => u.id) || []);
       setSelectedSoftwareIds(task.softwares?.map((s) => s.id) || []);
+      setSelectedMaterialIds(task.educational_materials?.map((m) => m.id) || []);
 
       if (task.due_date) {
         const d = new Date(task.due_date);
@@ -209,6 +226,7 @@ export function TaskModal({
       setSelectedTaskTypeIds([]);
       setSelectedUserIds([]);
       setSelectedSoftwareIds([]);
+      setSelectedMaterialIds([]);
       setDueDate("");
       if (isDifferentTask) {
         setIsFullEditMode(true);
@@ -300,6 +318,44 @@ export function TaskModal({
         onTaskSaved(updatedTaskWithDetails);
       } catch (err) {
         console.error("Failed to remove software:", err);
+      }
+    }
+  };
+
+  const handleRemoveMaterialInViewMode = async (matId: string) => {
+    const nextIds = selectedMaterialIds.filter((id) => id !== matId);
+    setSelectedMaterialIds(nextIds);
+    if (task) {
+      try {
+        await updateTask(task.id, { educational_material_ids: nextIds });
+        const updatedTaskWithDetails: TaskWithDetails = {
+          ...task,
+          educational_materials: (task.educational_materials || []).filter((m) => m.id !== matId),
+        };
+        Object.assign(task, updatedTaskWithDetails);
+        onTaskSaved(updatedTaskWithDetails);
+      } catch (err) {
+        console.error("Failed to remove material from task:", err);
+      }
+    }
+  };
+
+  const handleSaveAttachedMaterials = async (newIds: string[]) => {
+    setSelectedMaterialIds(newIds);
+    if (task) {
+      try {
+        await updateTask(task.id, { educational_material_ids: newIds });
+        const updatedMaterials = (allEducationalMaterials || []).filter((m) =>
+          newIds.includes(m.id)
+        );
+        const updatedTaskWithDetails: TaskWithDetails = {
+          ...task,
+          educational_materials: updatedMaterials,
+        };
+        Object.assign(task, updatedTaskWithDetails);
+        onTaskSaved(updatedTaskWithDetails);
+      } catch (err) {
+        console.error("Failed to update attached materials:", err);
       }
     }
   };
@@ -411,6 +467,7 @@ export function TaskModal({
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isSubmitting) return;
     if (!name.trim()) {
       setError("Task title is required");
       return;
@@ -430,6 +487,7 @@ export function TaskModal({
         task_type_ids: selectedTaskTypeIds,
         assignee_ids: selectedUserIds,
         software_ids: selectedSoftwareIds,
+        educational_material_ids: selectedMaterialIds,
         due_date: dueIso,
       };
 
@@ -447,6 +505,9 @@ export function TaskModal({
           task_types: taskTypes.filter((t) => selectedTaskTypeIds.includes(t.id)),
           assignees: users.filter((u) => selectedUserIds.includes(u.id)),
           softwares: (softwares || []).filter((s) => selectedSoftwareIds.includes(s.id)),
+          educational_materials: (allEducationalMaterials || []).filter((m) =>
+            selectedMaterialIds.includes(m.id)
+          ),
           updated_at: new Date().toISOString(),
         };
         Object.assign(task, updatedTaskWithDetails);
@@ -462,6 +523,9 @@ export function TaskModal({
           task_types: taskTypes.filter((t) => selectedTaskTypeIds.includes(t.id)),
           assignees: users.filter((u) => selectedUserIds.includes(u.id)),
           softwares: (softwares || []).filter((s) => selectedSoftwareIds.includes(s.id)),
+          educational_materials: (allEducationalMaterials || []).filter((m) =>
+            selectedMaterialIds.includes(m.id)
+          ),
           subtasks: [],
           resources: [],
         };
@@ -501,7 +565,22 @@ export function TaskModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       {/* Responsive Dialog Content with Generous Side Margins */}
       <DialogContent className="w-[95vw] sm:w-[85vw] md:w-[75vw] max-w-[75vw] max-h-[92vh] overflow-y-auto px-8 sm:px-14 md:px-20 py-6 sm:py-8">
-        <form onSubmit={handleSave}>
+        <form
+          onSubmit={handleSave}
+          onKeyDown={(e) => {
+            if (
+              (e.ctrlKey || e.metaKey) &&
+              (e.key?.toLowerCase() === "enter" ||
+                e.code === "Enter" ||
+                e.code === "NumpadEnter" ||
+                e.keyCode === 13 ||
+                e.which === 13)
+            ) {
+              e.preventDefault();
+              handleSave();
+            }
+          }}
+        >
           {/* Top Directory Breadcrumbs with Arrow Subtasks Dropdown */}
           {displayBreadcrumbs.length > 0 && (
             <div className="mb-4">
@@ -1512,9 +1591,10 @@ export function TaskModal({
                       <Button
                         type="button"
                         size="sm"
-                        className="h-8 text-xs"
+                        className="h-8 text-xs font-medium"
                         onClick={() => handleSave()}
                         disabled={isSubmitting}
+                        title="Save Description (Ctrl+Enter)"
                       >
                         Save Description
                       </Button>
@@ -1557,6 +1637,124 @@ export function TaskModal({
                 />
               </div>
             )}
+
+            {/* Educational Materials & Learning Resources Section */}
+            <div className="border-t pt-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <BookOpen className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-foreground flex items-center gap-2">
+                      <span>Educational Materials &amp; Study Guides</span>
+                      {selectedMaterialIds.length > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-primary/10 text-primary font-mono">
+                          {selectedMaterialIds.length}
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground">
+                      Linked courses, YouTube videos, and documentation for this task
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2.5 text-xs gap-1.5 rounded-xl border-dashed hover:border-primary/50 text-muted-foreground hover:text-foreground cursor-pointer"
+                  onClick={() => setIsAttachMaterialOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5 text-primary" />
+                  <span>Attach Material</span>
+                </Button>
+              </div>
+
+              {/* Attached materials list */}
+              {selectedMaterialIds.length === 0 ? (
+                <div
+                  onClick={() => setIsAttachMaterialOpen(true)}
+                  className="flex items-center justify-center gap-2 p-3.5 rounded-xl border border-dashed border-border/80 bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer text-xs text-muted-foreground"
+                >
+                  <BookOpen className="h-4 w-4 text-primary/70" />
+                  <span>Click to link tutorials, YouTube videos, courses or documentation from your learning library</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {selectedMaterialIds.map((matId) => {
+                    const mat =
+                      allEducationalMaterials.find((m) => m.id === matId) ||
+                      task?.educational_materials?.find((m) => m.id === matId);
+                    if (!mat) return null;
+                    const typeMeta = getMaterialTypeMeta(mat.type);
+                    const TypeIcon = typeMeta.icon;
+                    const groupObj = mat.group_id
+                      ? allStudyGroups.find((g) => g.id === mat.group_id)
+                      : null;
+
+                    return (
+                      <div
+                        key={mat.id}
+                        className="flex items-start justify-between gap-2 p-2.5 rounded-xl border border-border/80 bg-card hover:bg-muted/30 transition-colors text-xs group/mat"
+                      >
+                        <div className="min-w-0 space-y-1 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold text-white"
+                              style={{ backgroundColor: typeMeta.color }}
+                            >
+                              <TypeIcon className="h-3 w-3" />
+                              <span>{typeMeta.label}</span>
+                            </span>
+                            {groupObj && (
+                              <span className="text-[10px] text-muted-foreground font-medium">
+                                {groupObj.name}
+                              </span>
+                            )}
+                          </div>
+
+                          {mat.url ? (
+                            <a
+                              href={mat.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold text-foreground hover:text-primary transition-colors line-clamp-1 flex items-center gap-1"
+                            >
+                              <span>{mat.title}</span>
+                              <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+                            </a>
+                          ) : (
+                            <div className="font-semibold text-foreground line-clamp-1">
+                              {mat.title}
+                            </div>
+                          )}
+
+                          {mat.estimated_duration && (
+                            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                              <Clock className="h-2.5 w-2.5" />
+                              {mat.estimated_duration}
+                            </span>
+                          )}
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0 cursor-pointer"
+                          title="Remove attachment"
+                          onClick={() => handleRemoveMaterialInViewMode(mat.id)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Modal Footer */}
@@ -1678,6 +1876,16 @@ export function TaskModal({
             setIsDeletingSoftware(false);
           }
         }}
+      />
+
+      {/* Attach Educational Material Modal */}
+      <AttachMaterialModal
+        isOpen={isAttachMaterialOpen}
+        onClose={() => setIsAttachMaterialOpen(false)}
+        attachedMaterialIds={selectedMaterialIds}
+        allMaterials={allEducationalMaterials}
+        allGroups={allStudyGroups}
+        onSaveAttachments={handleSaveAttachedMaterials}
       />
     </Dialog>
   );

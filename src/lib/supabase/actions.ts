@@ -10,6 +10,16 @@ import {
   TaskBreadcrumb,
   Software,
   Database,
+  StudyGroup,
+  StudyGroupInsert,
+  StudyGroupUpdate,
+  StudyGroupConnection,
+  EducationalMaterial,
+  EducationalMaterialInsert,
+  EducationalMaterialUpdate,
+  StudyGroupWithDetails,
+  EducationalMaterialWithDetails,
+  ConnectedGroupInfo,
 } from "@/types/database.types";
 
 // ============================================================
@@ -143,6 +153,234 @@ let demoTasksSoftwaresState: { Task_Id: string; Software_Id: string }[] = [
   { Task_Id: "task-demo-4", Software_Id: "soft-3" },
   { Task_Id: "task-demo-4", Software_Id: "soft-5" },
   { Task_Id: "task-demo-4", Software_Id: "soft-6" },
+];
+
+export const INITIAL_DEMO_STUDY_GROUPS: StudyGroup[] = [
+  {
+    id: "group-env-art",
+    name: "Environment Art",
+    description: "3D level building, modular kit production, asset pipelines, and world art",
+    color: "#10b981",
+    icon: "palette",
+    parent_id: null,
+    tags: ["3D", "Environments", "Game Art"],
+    position: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "group-blender-modelling",
+    name: "Modelling tips for Blender",
+    description: "Subdivision surface, hard surface booleans, modifier stacks, and clean topology",
+    color: "#10b981",
+    icon: "box",
+    parent_id: "group-env-art",
+    tags: ["Blender", "Modelling", "Hard Surface"],
+    position: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "group-texturing",
+    name: "Texturing & UVs",
+    description: "PBR workflows, UV unwrapping, texel density, packing, and mask generators",
+    color: "#059669",
+    icon: "layers",
+    parent_id: "group-env-art",
+    tags: ["Texturing", "Substance", "UVs", "PBR"],
+    position: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "group-texture-painting",
+    name: "Texture Painting",
+    description: "Hand-painted techniques, stylized texturing, projection, and brush techniques",
+    color: "#047857",
+    icon: "brush",
+    parent_id: "group-env-art",
+    tags: ["Handpainted", "Stylized", "Painting"],
+    position: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "group-unreal-engine",
+    name: "Unreal Engine Integration",
+    description: "Nanite meshes, master materials, vertex painting, Lumen setup, and foliage",
+    color: "#0f766e",
+    icon: "cpu",
+    parent_id: "group-env-art",
+    tags: ["Unreal Engine", "UE5", "Lumen", "Nanite"],
+    position: 3,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "group-photo-vis",
+    name: "Photoreal Visualisation",
+    description: "High-end look development, realistic lighting, and photoreal rendering",
+    color: "#3b82f6",
+    icon: "sparkles",
+    parent_id: null,
+    tags: ["Photoreal", "LookDev", "VFX"],
+    position: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "group-photo-shading",
+    name: "Photoreal Shading & Materials",
+    description: "IOR values, subsurface scattering, microfacet roughness, and layered physical shaders",
+    color: "#2563eb",
+    icon: "droplet",
+    parent_id: "group-photo-vis",
+    tags: ["Shading", "IOR", "SSS", "Micro-surface"],
+    position: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "group-camera-lighting",
+    name: "Camera & Lighting Studio",
+    description: "Physical camera sensor, aperture depth of field, exposure, and studio HDRI balance",
+    color: "#1d4ed8",
+    icon: "camera",
+    parent_id: "group-photo-vis",
+    tags: ["Lighting", "Cinematography", "HDRI"],
+    position: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "group-compositing",
+    name: "Compositing & Post-Production",
+    description: "Node-based compositing, multi-pass EXR reconstruction, and ACES color grading",
+    color: "#8b5cf6",
+    icon: "film",
+    parent_id: null,
+    tags: ["Nuke", "DaVinci", "Comp"],
+    position: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "group-color-aces",
+    name: "Color Management & ACES",
+    description: "Setting up ACEScg pipeline in 3D packages and tone mapping in grading suite",
+    color: "#7c3aed",
+    icon: "sliders",
+    parent_id: "group-compositing",
+    tags: ["ACES", "Color Science", "OCIO"],
+    position: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+export const INITIAL_DEMO_CONNECTIONS: StudyGroupConnection[] = [
+  {
+    id: "conn-1",
+    source_group_id: "group-texturing",
+    target_group_id: "group-photo-shading",
+    label: "PBR roughness maps & dielectric micro-surface consistency",
+    created_at: new Date().toISOString(),
+  },
+];
+
+export const INITIAL_DEMO_MATERIALS: EducationalMaterial[] = [
+  {
+    id: "mat-1",
+    title: "Blender 4.x Complete Texturing & Masking Masterclass",
+    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    type: "video",
+    description: "Comprehensive walkthrough of procedural masking, curvature maps, and edge wear nodes in Blender without external software.",
+    group_id: "group-texturing",
+    tags: ["Blender", "Procedural", "Masking"],
+    difficulty: "Intermediate",
+    is_favorite: true,
+    estimated_duration: "1h 45m",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "mat-2",
+    title: "Unreal Engine 5 Photorealistic Environment Pipeline",
+    url: "https://dev.epicgames.com/community/learning",
+    type: "course",
+    description: "Official Epic Games course covering modular assets, Nanite geometry, master materials with vertex painting, and Lumen optimization.",
+    group_id: "group-unreal-engine",
+    tags: ["UE5", "Nanite", "Lumen", "Architecture"],
+    difficulty: "Advanced",
+    is_favorite: true,
+    estimated_duration: "4 hours",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "mat-3",
+    title: "The Comprehensive PBR Guide by Adobe / Allegorithmic",
+    url: "https://substance3d.adobe.com/tutorials/courses/the-pbr-guide-part-1",
+    type: "guide",
+    description: "The definitive guide to physically based rendering. Detailed breakdown of metallic vs specular workflows, energy conservation, and Fresnel reflections.",
+    group_id: "group-photo-shading",
+    tags: ["PBR", "Theory", "Shading", "Optics"],
+    difficulty: "Beginner",
+    is_favorite: true,
+    estimated_duration: "45m read",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "mat-4",
+    title: "Polycount Environment Art & Texturing Forum",
+    url: "https://polycount.com/categories/environment-art",
+    type: "forum",
+    description: "Industry standard discussion forum with portfolio critiques, technical breakdown threads, and texturing discussions.",
+    group_id: "group-texturing",
+    tags: ["Community", "Feedback", "Industry"],
+    difficulty: "Intermediate",
+    is_favorite: false,
+    estimated_duration: "Ongoing",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "mat-5",
+    title: "Blender Artists Community - Topology & Hard Surface Tips",
+    url: "https://blenderartists.org/",
+    type: "website",
+    description: "Active community sharing hard-surface modifier stacks, subdivision tricks, and clean boolean remeshing techniques.",
+    group_id: "group-blender-modelling",
+    tags: ["Blender", "Topology", "Tips"],
+    difficulty: "Beginner",
+    is_favorite: false,
+    estimated_duration: "Reference",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "mat-6",
+    title: "ACES Color Management Simplified for 3D Artists",
+    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    type: "video",
+    description: "Clear visual explanation of scene-referred color spaces, dynamic range, and why sRGB clipping ruins highlights in renders.",
+    group_id: "group-color-aces",
+    tags: ["ACES", "Color", "Grading"],
+    difficulty: "Intermediate",
+    is_favorite: false,
+    estimated_duration: "35m",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+let demoStudyGroupsState: StudyGroup[] = [...INITIAL_DEMO_STUDY_GROUPS];
+let demoConnectionsState: StudyGroupConnection[] = [...INITIAL_DEMO_CONNECTIONS];
+let demoEducationalMaterialsState: EducationalMaterial[] = [...INITIAL_DEMO_MATERIALS];
+let demoTasksMaterialsState: { Task_Id: string; Material_Id: string; notes?: string }[] = [
+  { Task_Id: "task-3", Material_Id: "mat-1", notes: "Reference procedural texture generation" },
+  { Task_Id: "task-1", Material_Id: "mat-2", notes: "UE5 setup" },
 ];
 
 const INITIAL_DEMO_USERS: User[] = [
@@ -382,8 +620,8 @@ export async function fetchBoardData(): Promise<{
       applyOrder(demoTasksState);
     }
 
-    // Enrich demo tasks with softwares
-    const enrichDemoWithSoftwares = (list: TaskWithDetails[]): TaskWithDetails[] => {
+    // Enrich demo tasks with softwares and educational materials
+    const enrichDemoTasks = (list: TaskWithDetails[]): TaskWithDetails[] => {
       return list.map((t) => {
         const softIds = demoTasksSoftwaresState
           .filter((rel) => rel.Task_Id === t.id)
@@ -391,14 +629,22 @@ export async function fetchBoardData(): Promise<{
         const softwares = softIds
           .map((id) => demoSoftwaresState.find((s) => s.id === id))
           .filter(Boolean) as Software[];
+
+        const matIds = demoTasksMaterialsState
+          .filter((rel) => rel.Task_Id === t.id)
+          .map((rel) => rel.Material_Id);
+        const educational_materials = matIds
+          .map((id) => demoEducationalMaterialsState.find((m) => m.id === id))
+          .filter(Boolean) as EducationalMaterial[];
+
         const enrichedSubtasks =
           t.subtasks && t.subtasks.length > 0
-            ? enrichDemoWithSoftwares(t.subtasks)
+            ? enrichDemoTasks(t.subtasks)
             : t.subtasks;
-        return { ...t, softwares, subtasks: enrichedSubtasks };
+        return { ...t, softwares, educational_materials, subtasks: enrichedSubtasks };
       });
     };
-    const enrichedTasks = enrichDemoWithSoftwares(demoTasksState);
+    const enrichedTasks = enrichDemoTasks(demoTasksState);
 
     return {
       statuses: demoStatusesState,
@@ -475,6 +721,17 @@ export async function fetchBoardData(): Promise<{
     } catch (e) {
       console.warn("Tasks_Softwares table query warning:", e);
     }
+
+    let rawTaskMaterials: { task_id: string; material_id: string }[] = [];
+    let rawEducationalMaterials: EducationalMaterial[] = [];
+    try {
+      const { data: tmData } = await supabase.from("Tasks_EducationalMaterials").select("*");
+      rawTaskMaterials = (tmData || []) as { task_id: string; material_id: string }[];
+      const { data: emData } = await supabase.from("EducationalMaterials").select("*");
+      rawEducationalMaterials = (emData || []) as EducationalMaterial[];
+    } catch (e) {
+      // Table may not yet be created in user's Supabase instance
+    }
     const { data: rawResources } = await supabase.from("Resources").select("*");
     const { data: rawFiles } = await supabase.from("Files").select("*");
 
@@ -482,6 +739,7 @@ export async function fetchBoardData(): Promise<{
     const projectsMap = new Map(projects.map((p) => [p.id, p]));
     const typesMap = new Map(taskTypes.map((t) => [t.id, t]));
     const usersMap = new Map(users.map((u) => [u.id, u]));
+    const materialsMap = new Map(rawEducationalMaterials.map((m) => [m.id, m]));
 
     const resourcesWithFiles: ResourceWithFiles[] = (rawResources || []).map((res) => {
       // Clean legacy auto-generated file size descriptions
@@ -522,6 +780,13 @@ export async function fetchBoardData(): Promise<{
         .map((id) => softwaresMap.get(id))
         .filter(Boolean) as Software[];
 
+      const matIds = rawTaskMaterials
+        .filter((rel) => rel.task_id === t.id)
+        .map((rel) => rel.material_id);
+      const assignedMaterials = matIds
+        .map((id) => materialsMap.get(id))
+        .filter(Boolean) as EducationalMaterial[];
+
       let taskResources = resourcesWithFiles.filter((r) => r.Task_Id === t.id);
       if (typeof window !== "undefined") {
         try {
@@ -547,6 +812,7 @@ export async function fetchBoardData(): Promise<{
         task_types: assignedTypes,
         assignees: assignedUsers,
         softwares: assignedSoftwares,
+        educational_materials: assignedMaterials,
         subtasks: [],
         resources: taskResources,
         breadcrumbs: [],
@@ -612,6 +878,9 @@ export async function createTask(formData: TaskFormData): Promise<TaskWithDetail
     const assignedSoftwares = demoSoftwaresState.filter((s) =>
       formData.software_ids?.includes(s.id)
     );
+    const assignedMaterials = demoEducationalMaterialsState.filter((m) =>
+      formData.educational_material_ids?.includes(m.id)
+    );
     const newTask: TaskWithDetails = {
       id: "task-" + Date.now(),
       name: formData.name,
@@ -626,6 +895,7 @@ export async function createTask(formData: TaskFormData): Promise<TaskWithDetail
       task_types: INITIAL_DEMO_TASKTYPES.filter((t) => formData.task_type_ids?.includes(t.id)),
       assignees: INITIAL_DEMO_USERS.filter((u) => formData.assignee_ids?.includes(u.id)),
       softwares: assignedSoftwares,
+      educational_materials: assignedMaterials,
       subtasks: [],
       resources: [],
       breadcrumbs: [],
@@ -634,6 +904,12 @@ export async function createTask(formData: TaskFormData): Promise<TaskWithDetail
     if (formData.software_ids && formData.software_ids.length > 0) {
       formData.software_ids.forEach((sId) => {
         demoTasksSoftwaresState.push({ Task_Id: newTask.id, Software_Id: sId });
+      });
+    }
+
+    if (formData.educational_material_ids && formData.educational_material_ids.length > 0) {
+      formData.educational_material_ids.forEach((mId) => {
+        demoTasksMaterialsState.push({ Task_Id: newTask.id, Material_Id: mId });
       });
     }
 
@@ -710,6 +986,19 @@ export async function createTask(formData: TaskFormData): Promise<TaskWithDetail
     }
   }
 
+  // Insert educational materials into Tasks_EducationalMaterials
+  if (formData.educational_material_ids && formData.educational_material_ids.length > 0) {
+    const matRecords = formData.educational_material_ids.map((materialId) => ({
+      task_id: insertedTask.id,
+      material_id: materialId,
+    }));
+    try {
+      await supabase.from("Tasks_EducationalMaterials").insert(matRecords);
+    } catch (e) {
+      console.warn("Failed to link educational materials to task:", e);
+    }
+  }
+
   // Compute breadcrumbs for the new task
   const breadcrumbs: TaskBreadcrumb[] = [{ id: insertedTask.id, name: insertedTask.name }];
   if (insertedTask.Task_Parent_Id) {
@@ -738,6 +1027,17 @@ export async function createTask(formData: TaskFormData): Promise<TaskWithDetail
     softwares = (softData || []) as Software[];
   } catch (e) {}
 
+  let educationalMaterials: EducationalMaterial[] = [];
+  if (formData.educational_material_ids && formData.educational_material_ids.length > 0) {
+    try {
+      const { data: matData } = await supabase
+        .from("EducationalMaterials")
+        .select("*")
+        .in("id", formData.educational_material_ids);
+      educationalMaterials = (matData || []) as EducationalMaterial[];
+    } catch (e) {}
+  }
+
   const { data: status } = insertedTask.status_id
     ? await supabase.from("Status").select("*").eq("id", insertedTask.status_id).single()
     : { data: null };
@@ -756,6 +1056,7 @@ export async function createTask(formData: TaskFormData): Promise<TaskWithDetail
     task_types: assignedTypes,
     assignees: assignedUsers,
     softwares: assignedSoftwares,
+    educational_materials: educationalMaterials,
     subtasks: [],
     resources: [],
     breadcrumbs,
@@ -777,6 +1078,13 @@ export async function updateTask(
       });
     }
 
+    if (formData.educational_material_ids !== undefined) {
+      demoTasksMaterialsState = demoTasksMaterialsState.filter((rel) => rel.Task_Id !== taskId);
+      formData.educational_material_ids.forEach((mId) => {
+        demoTasksMaterialsState.push({ Task_Id: taskId, Material_Id: mId });
+      });
+    }
+
     const updateRecursively = (tasks: TaskWithDetails[]): TaskWithDetails[] => {
       return tasks.map((task) => {
         if (task.id === taskId) {
@@ -784,6 +1092,12 @@ export async function updateTask(
             formData.software_ids !== undefined
               ? demoSoftwaresState.filter((s) => formData.software_ids?.includes(s.id))
               : task.softwares;
+          const updatedMaterials =
+            formData.educational_material_ids !== undefined
+              ? demoEducationalMaterialsState.filter((m) =>
+                  formData.educational_material_ids?.includes(m.id)
+                )
+              : task.educational_materials;
           return {
             ...task,
             name: formData.name ?? task.name,
@@ -792,6 +1106,7 @@ export async function updateTask(
             Project_id: formData.Project_id ?? task.Project_id,
             due_date: formData.due_date !== undefined ? formData.due_date : task.due_date,
             softwares: updatedSoftwares,
+            educational_materials: updatedMaterials,
             task_types: formData.task_type_ids
               ? INITIAL_DEMO_TASKTYPES.filter((t) => formData.task_type_ids?.includes(t.id))
               : task.task_types,
@@ -872,6 +1187,23 @@ export async function updateTask(
       }
     } catch (e) {
       console.warn("Failed to sync softwares for task:", e);
+    }
+  }
+
+  // Sync Educational Materials if provided
+  if (formData.educational_material_ids !== undefined) {
+    try {
+      await supabase.from("Tasks_EducationalMaterials").delete().eq("task_id", taskId);
+      if (formData.educational_material_ids.length > 0) {
+        await supabase.from("Tasks_EducationalMaterials").insert(
+          formData.educational_material_ids.map((mId) => ({
+            task_id: taskId,
+            material_id: mId,
+          }))
+        );
+      }
+    } catch (e) {
+      console.warn("Failed to sync educational materials for task:", e);
     }
   }
 }
@@ -1448,5 +1780,576 @@ export async function deleteSoftware(id: string): Promise<void> {
   if (isSupabaseConfigured) {
     const { error } = await supabase.from("Softwares").delete().eq("id", id);
     if (error) throw error;
+  }
+}
+
+// ============================================================
+// Educational Materials & Knowledge Hub Actions
+// ============================================================
+
+export async function fetchEducationalHubData(): Promise<{
+  groups: StudyGroupWithDetails[];
+  flatGroups: StudyGroup[];
+  materials: EducationalMaterialWithDetails[];
+  connections: StudyGroupConnection[];
+  allTags: string[];
+}> {
+  let groupsData: StudyGroup[] = [];
+  let connectionsData: StudyGroupConnection[] = [];
+  let materialsData: EducationalMaterial[] = [];
+  let taskLinksData: { task_id: string; material_id: string }[] = [];
+  let tasksList: { id: string; name: string }[] = [];
+
+  if (!isSupabaseConfigured) {
+    groupsData = [...demoStudyGroupsState];
+    connectionsData = [...demoConnectionsState];
+    materialsData = [...demoEducationalMaterialsState];
+    taskLinksData = demoTasksMaterialsState.map((r) => ({
+      task_id: r.Task_Id,
+      material_id: r.Material_Id,
+    }));
+    const collectTasks = (list: TaskWithDetails[]): { id: string; name: string }[] => {
+      let res: { id: string; name: string }[] = [];
+      for (const t of list) {
+        res.push({ id: t.id, name: t.name });
+        if (t.subtasks && t.subtasks.length > 0) {
+          res = res.concat(collectTasks(t.subtasks));
+        }
+      }
+      return res;
+    };
+    tasksList = collectTasks(demoTasksState);
+  } else {
+    try {
+      const { data: gData } = await supabase
+        .from("StudyGroups")
+        .select("*")
+        .order("position", { ascending: true })
+        .order("name", { ascending: true });
+      groupsData = (gData || []) as StudyGroup[];
+
+      const { data: cData } = await supabase.from("StudyGroupConnections").select("*");
+      connectionsData = (cData || []) as StudyGroupConnection[];
+
+      const { data: mData } = await supabase
+        .from("EducationalMaterials")
+        .select("*")
+        .order("created_at", { ascending: false });
+      materialsData = (mData || []) as EducationalMaterial[];
+
+      const { data: tData } = await supabase.from("Tasks_EducationalMaterials").select("*");
+      taskLinksData = (tData || []) as { task_id: string; material_id: string }[];
+
+      const { data: allTasksData } = await supabase.from("Tasks").select("id, name");
+      tasksList = (allTasksData || []) as { id: string; name: string }[];
+    } catch (e) {
+      console.warn("Failed to fetch educational data from Supabase, falling back to demo state:", e);
+      groupsData = [...demoStudyGroupsState];
+      connectionsData = [...demoConnectionsState];
+      materialsData = [...demoEducationalMaterialsState];
+      taskLinksData = demoTasksMaterialsState.map((r) => ({
+        task_id: r.Task_Id,
+        material_id: r.Material_Id,
+      }));
+    }
+  }
+
+  const groupsMap = new Map<string, StudyGroup>(groupsData.map((g) => [g.id, g]));
+
+  const getGroupPath = (groupId: string | null): string[] => {
+    if (!groupId) return [];
+    const path: string[] = [];
+    let curr = groupsMap.get(groupId);
+    const visited = new Set<string>();
+    while (curr && !visited.has(curr.id)) {
+      visited.add(curr.id);
+      path.unshift(curr.name);
+      curr = curr.parent_id ? groupsMap.get(curr.parent_id) : undefined;
+    }
+    return path;
+  };
+
+  const countMaterialsForGroup = (groupId: string): number => {
+    const descendantIds = new Set<string>([groupId]);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const g of groupsData) {
+        if (g.parent_id && descendantIds.has(g.parent_id) && !descendantIds.has(g.id)) {
+          descendantIds.add(g.id);
+          added = true;
+        }
+      }
+    }
+    return materialsData.filter((m) => m.group_id && descendantIds.has(m.group_id)).length;
+  };
+
+  const getConnectedGroupsFor = (groupId: string): ConnectedGroupInfo[] => {
+    const list: ConnectedGroupInfo[] = [];
+    for (const conn of connectionsData) {
+      let targetId: string | null = null;
+      if (conn.source_group_id === groupId) {
+        targetId = conn.target_group_id;
+      } else if (conn.target_group_id === groupId) {
+        targetId = conn.source_group_id;
+      }
+      if (targetId) {
+        const targetGroup = groupsMap.get(targetId);
+        if (targetGroup) {
+          const parentGroup = targetGroup.parent_id ? groupsMap.get(targetGroup.parent_id) : null;
+          list.push({
+            id: targetGroup.id,
+            name: targetGroup.name,
+            parent_name: parentGroup?.name,
+            color: targetGroup.color,
+            connection_id: conn.id,
+            label: conn.label,
+          });
+        }
+      }
+    }
+    return list;
+  };
+
+  const detailedGroupsMap = new Map<string, StudyGroupWithDetails>();
+  groupsData.forEach((g) => {
+    detailedGroupsMap.set(g.id, {
+      ...g,
+      children: [],
+      parent: g.parent_id ? groupsMap.get(g.parent_id) || null : null,
+      materials_count: countMaterialsForGroup(g.id),
+      connected_groups: getConnectedGroupsFor(g.id),
+    });
+  });
+
+  detailedGroupsMap.forEach((g) => {
+    if (g.parent_id && detailedGroupsMap.has(g.parent_id)) {
+      const parent = detailedGroupsMap.get(g.parent_id)!;
+      parent.children = parent.children || [];
+      parent.children.push(g);
+    }
+  });
+
+  const rootGroups = Array.from(detailedGroupsMap.values()).filter((g) => !g.parent_id);
+
+  const enrichedMaterials: EducationalMaterialWithDetails[] = materialsData.map((m) => {
+    const directGroup = m.group_id ? groupsMap.get(m.group_id) || null : null;
+    const groupPath = getGroupPath(m.group_id);
+    const linkingTaskIds = taskLinksData
+      .filter((l) => l.material_id === m.id)
+      .map((l) => l.task_id);
+    const linkedTasks = tasksList.filter((t) => linkingTaskIds.includes(t.id));
+
+    return {
+      ...m,
+      group: directGroup,
+      group_path: groupPath,
+      linked_tasks: linkedTasks,
+    };
+  });
+
+  const tagsSet = new Set<string>();
+  groupsData.forEach((g) => (g.tags || []).forEach((t) => tagsSet.add(t)));
+  materialsData.forEach((m) => (m.tags || []).forEach((t) => tagsSet.add(t)));
+  const allTags = Array.from(tagsSet).sort();
+
+  return {
+    groups: rootGroups,
+    flatGroups: Array.from(detailedGroupsMap.values()),
+    materials: enrichedMaterials,
+    connections: connectionsData,
+    allTags,
+  };
+}
+
+// ------------------------------------------------------------
+// Study Groups CRUD
+// ------------------------------------------------------------
+export async function createStudyGroup(data: {
+  name: string;
+  description?: string | null;
+  color?: string;
+  icon?: string | null;
+  parent_id?: string | null;
+  tags?: string[];
+}): Promise<StudyGroup> {
+  const newGroup: StudyGroup = {
+    id: "group-" + Date.now(),
+    name: data.name.trim(),
+    description: data.description || null,
+    color: data.color || "#3b82f6",
+    icon: data.icon || "folder",
+    parent_id: data.parent_id || null,
+    tags: data.tags || [],
+    position: demoStudyGroupsState.length,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  demoStudyGroupsState = [...demoStudyGroupsState, newGroup];
+
+  if (isSupabaseConfigured) {
+    try {
+      const { data: inserted, error } = await supabase
+        .from("StudyGroups")
+        .insert({
+          name: newGroup.name,
+          description: newGroup.description,
+          color: newGroup.color,
+          icon: newGroup.icon,
+          parent_id: newGroup.parent_id,
+          tags: newGroup.tags,
+          position: newGroup.position,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return inserted as StudyGroup;
+    } catch (e) {
+      console.warn("Failed to create study group in Supabase, stored in local state:", e);
+    }
+  }
+
+  return newGroup;
+}
+
+export async function updateStudyGroup(
+  id: string,
+  data: Partial<StudyGroupUpdate>
+): Promise<StudyGroup> {
+  let updatedGroup: StudyGroup | null = null;
+  demoStudyGroupsState = demoStudyGroupsState.map((g) => {
+    if (g.id === id) {
+      updatedGroup = {
+        ...g,
+        name: data.name ?? g.name,
+        description: data.description !== undefined ? data.description : g.description,
+        color: data.color ?? g.color,
+        icon: data.icon !== undefined ? data.icon : g.icon,
+        parent_id: data.parent_id !== undefined ? data.parent_id : g.parent_id,
+        tags: data.tags ?? g.tags,
+        updated_at: new Date().toISOString(),
+      };
+      return updatedGroup;
+    }
+    return g;
+  });
+
+  if (isSupabaseConfigured) {
+    try {
+      const { data: updated, error } = await supabase
+        .from("StudyGroups")
+        .update({
+          ...data,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return updated as StudyGroup;
+    } catch (e) {
+      console.warn("Failed to update study group in Supabase:", e);
+    }
+  }
+
+  return updatedGroup || demoStudyGroupsState[0];
+}
+
+export async function deleteStudyGroup(id: string): Promise<void> {
+  // Collect all descendant group IDs recursively
+  const toDelete = new Set<string>([id]);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const g of demoStudyGroupsState) {
+      if (g.parent_id && toDelete.has(g.parent_id) && !toDelete.has(g.id)) {
+        toDelete.add(g.id);
+        added = true;
+      }
+    }
+  }
+
+  demoStudyGroupsState = demoStudyGroupsState.filter((g) => !toDelete.has(g.id));
+  demoConnectionsState = demoConnectionsState.filter(
+    (c) => !toDelete.has(c.source_group_id) && !toDelete.has(c.target_group_id)
+  );
+  demoEducationalMaterialsState = demoEducationalMaterialsState.map((m) =>
+    m.group_id && toDelete.has(m.group_id) ? { ...m, group_id: null } : m
+  );
+
+  if (isSupabaseConfigured) {
+    try {
+      const { error } = await supabase.from("StudyGroups").delete().eq("id", id);
+      if (error) throw error;
+    } catch (e) {
+      console.warn("Failed to delete study group in Supabase:", e);
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// Group Connections CRUD
+// ------------------------------------------------------------
+export async function createGroupConnection(
+  sourceGroupId: string,
+  targetGroupId: string,
+  label?: string | null
+): Promise<StudyGroupConnection> {
+  const newConn: StudyGroupConnection = {
+    id: "conn-" + Date.now(),
+    source_group_id: sourceGroupId,
+    target_group_id: targetGroupId,
+    label: label?.trim() || null,
+    created_at: new Date().toISOString(),
+  };
+
+  // Prevent duplicate connection in demo state
+  const exists = demoConnectionsState.some(
+    (c) =>
+      (c.source_group_id === sourceGroupId && c.target_group_id === targetGroupId) ||
+      (c.source_group_id === targetGroupId && c.target_group_id === sourceGroupId)
+  );
+
+  if (!exists) {
+    demoConnectionsState = [...demoConnectionsState, newConn];
+  }
+
+  if (isSupabaseConfigured) {
+    try {
+      const { data: inserted, error } = await supabase
+        .from("StudyGroupConnections")
+        .insert({
+          source_group_id: sourceGroupId,
+          target_group_id: targetGroupId,
+          label: newConn.label,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return inserted as StudyGroupConnection;
+    } catch (e) {
+      console.warn("Failed to create group connection in Supabase:", e);
+    }
+  }
+
+  return newConn;
+}
+
+export async function deleteGroupConnection(connectionId: string): Promise<void> {
+  demoConnectionsState = demoConnectionsState.filter((c) => c.id !== connectionId);
+
+  if (isSupabaseConfigured) {
+    try {
+      const { error } = await supabase
+        .from("StudyGroupConnections")
+        .delete()
+        .eq("id", connectionId);
+      if (error) throw error;
+    } catch (e) {
+      console.warn("Failed to delete group connection in Supabase:", e);
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// Educational Materials CRUD
+// ------------------------------------------------------------
+export async function createEducationalMaterial(data: {
+  title: string;
+  url?: string | null;
+  type: string;
+  description?: string | null;
+  group_id?: string | null;
+  tags?: string[];
+  difficulty?: string | null;
+  is_favorite?: boolean;
+  estimated_duration?: string | null;
+}): Promise<EducationalMaterial> {
+  const newMat: EducationalMaterial = {
+    id: "mat-" + Date.now(),
+    title: data.title.trim(),
+    url: data.url?.trim() || null,
+    type: data.type || "website",
+    description: data.description || null,
+    group_id: data.group_id || null,
+    tags: data.tags || [],
+    difficulty: data.difficulty || "Intermediate",
+    is_favorite: data.is_favorite || false,
+    estimated_duration: data.estimated_duration?.trim() || null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  demoEducationalMaterialsState = [newMat, ...demoEducationalMaterialsState];
+
+  if (isSupabaseConfigured) {
+    try {
+      const { data: inserted, error } = await supabase
+        .from("EducationalMaterials")
+        .insert({
+          title: newMat.title,
+          url: newMat.url,
+          type: newMat.type,
+          description: newMat.description,
+          group_id: newMat.group_id,
+          tags: newMat.tags,
+          difficulty: newMat.difficulty,
+          is_favorite: newMat.is_favorite,
+          estimated_duration: newMat.estimated_duration,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return inserted as EducationalMaterial;
+    } catch (e) {
+      console.warn("Failed to create educational material in Supabase, using local state:", e);
+    }
+  }
+
+  return newMat;
+}
+
+export async function updateEducationalMaterial(
+  id: string,
+  data: Partial<EducationalMaterialUpdate>
+): Promise<EducationalMaterial> {
+  let updatedMat: EducationalMaterial | null = null;
+  demoEducationalMaterialsState = demoEducationalMaterialsState.map((m) => {
+    if (m.id === id) {
+      updatedMat = {
+        ...m,
+        title: data.title ?? m.title,
+        url: data.url !== undefined ? data.url : m.url,
+        type: data.type ?? m.type,
+        description: data.description !== undefined ? data.description : m.description,
+        group_id: data.group_id !== undefined ? data.group_id : m.group_id,
+        tags: data.tags ?? m.tags,
+        difficulty: data.difficulty !== undefined ? data.difficulty : m.difficulty,
+        is_favorite: data.is_favorite !== undefined ? data.is_favorite : m.is_favorite,
+        estimated_duration:
+          data.estimated_duration !== undefined ? data.estimated_duration : m.estimated_duration,
+        updated_at: new Date().toISOString(),
+      };
+      return updatedMat;
+    }
+    return m;
+  });
+
+  if (isSupabaseConfigured) {
+    try {
+      const { data: updated, error } = await supabase
+        .from("EducationalMaterials")
+        .update({
+          ...data,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return updated as EducationalMaterial;
+    } catch (e) {
+      console.warn("Failed to update educational material in Supabase:", e);
+    }
+  }
+
+  return updatedMat || demoEducationalMaterialsState[0];
+}
+
+export async function deleteEducationalMaterial(id: string): Promise<void> {
+  demoEducationalMaterialsState = demoEducationalMaterialsState.filter((m) => m.id !== id);
+  demoTasksMaterialsState = demoTasksMaterialsState.filter((rel) => rel.Material_Id !== id);
+
+  const removeMatRecursively = (tasks: TaskWithDetails[]) => {
+    tasks.forEach((t) => {
+      if (t.educational_materials) {
+        t.educational_materials = t.educational_materials.filter((m) => m.id !== id);
+      }
+      if (t.subtasks && t.subtasks.length > 0) {
+        removeMatRecursively(t.subtasks);
+      }
+    });
+  };
+  removeMatRecursively(demoTasksState);
+
+  if (isSupabaseConfigured) {
+    try {
+      const { error } = await supabase.from("EducationalMaterials").delete().eq("id", id);
+      if (error) throw error;
+    } catch (e) {
+      console.warn("Failed to delete educational material in Supabase:", e);
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// Task - Learning Material Linking
+// ------------------------------------------------------------
+export async function linkTaskMaterial(
+  taskId: string,
+  materialId: string,
+  notes?: string
+): Promise<void> {
+  const exists = demoTasksMaterialsState.some(
+    (rel) => rel.Task_Id === taskId && rel.Material_Id === materialId
+  );
+  if (!exists) {
+    demoTasksMaterialsState.push({ Task_Id: taskId, Material_Id: materialId, notes });
+  }
+
+  if (isSupabaseConfigured) {
+    try {
+      await supabase.from("Tasks_EducationalMaterials").insert({
+        task_id: taskId,
+        material_id: materialId,
+        notes: notes || null,
+      });
+    } catch (e) {
+      console.warn("Failed to link material to task in Supabase:", e);
+    }
+  }
+}
+
+export async function unlinkTaskMaterial(taskId: string, materialId: string): Promise<void> {
+  demoTasksMaterialsState = demoTasksMaterialsState.filter(
+    (rel) => !(rel.Task_Id === taskId && rel.Material_Id === materialId)
+  );
+
+  if (isSupabaseConfigured) {
+    try {
+      await supabase
+        .from("Tasks_EducationalMaterials")
+        .delete()
+        .match({ task_id: taskId, material_id: materialId });
+    } catch (e) {
+      console.warn("Failed to unlink material from task in Supabase:", e);
+    }
+  }
+}
+
+export async function updateTaskMaterialLinks(
+  taskId: string,
+  materialIds: string[]
+): Promise<void> {
+  demoTasksMaterialsState = demoTasksMaterialsState.filter((rel) => rel.Task_Id !== taskId);
+  materialIds.forEach((mId) => {
+    demoTasksMaterialsState.push({ Task_Id: taskId, Material_Id: mId });
+  });
+
+  if (isSupabaseConfigured) {
+    try {
+      await supabase.from("Tasks_EducationalMaterials").delete().eq("task_id", taskId);
+      if (materialIds.length > 0) {
+        await supabase.from("Tasks_EducationalMaterials").insert(
+          materialIds.map((mId) => ({
+            task_id: taskId,
+            material_id: mId,
+          }))
+        );
+      }
+    } catch (e) {
+      console.warn("Failed to update task material links in Supabase:", e);
+    }
   }
 }

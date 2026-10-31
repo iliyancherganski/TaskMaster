@@ -410,6 +410,184 @@ export type Database = {
           }
         ];
       };
+      StudyGroups: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          color: string;
+          icon: string | null;
+          parent_id: string | null;
+          tags: string[];
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          color?: string;
+          icon?: string | null;
+          parent_id?: string | null;
+          tags?: string[];
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string | null;
+          color?: string;
+          icon?: string | null;
+          parent_id?: string | null;
+          tags?: string[];
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "StudyGroups_parent_id_fkey";
+            columns: ["parent_id"];
+            isOneToOne: false;
+            referencedRelation: "StudyGroups";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      StudyGroupConnections: {
+        Row: {
+          id: string;
+          source_group_id: string;
+          target_group_id: string;
+          label: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          source_group_id: string;
+          target_group_id: string;
+          label?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          source_group_id?: string;
+          target_group_id?: string;
+          label?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "StudyGroupConnections_source_group_id_fkey";
+            columns: ["source_group_id"];
+            isOneToOne: false;
+            referencedRelation: "StudyGroups";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "StudyGroupConnections_target_group_id_fkey";
+            columns: ["target_group_id"];
+            isOneToOne: false;
+            referencedRelation: "StudyGroups";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      EducationalMaterials: {
+        Row: {
+          id: string;
+          title: string;
+          url: string | null;
+          type: string;
+          description: string | null;
+          group_id: string | null;
+          tags: string[];
+          difficulty: string | null;
+          is_favorite: boolean;
+          estimated_duration: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          url?: string | null;
+          type?: string;
+          description?: string | null;
+          group_id?: string | null;
+          tags?: string[];
+          difficulty?: string | null;
+          is_favorite?: boolean;
+          estimated_duration?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          url?: string | null;
+          type?: string;
+          description?: string | null;
+          group_id?: string | null;
+          tags?: string[];
+          difficulty?: string | null;
+          is_favorite?: boolean;
+          estimated_duration?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "EducationalMaterials_group_id_fkey";
+            columns: ["group_id"];
+            isOneToOne: false;
+            referencedRelation: "StudyGroups";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      Tasks_EducationalMaterials: {
+        Row: {
+          id: string;
+          task_id: string;
+          material_id: string;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          material_id: string;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          task_id?: string;
+          material_id?: string;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "Tasks_EducationalMaterials_task_id_fkey";
+            columns: ["task_id"];
+            isOneToOne: false;
+            referencedRelation: "Tasks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "Tasks_EducationalMaterials_material_id_fkey";
+            columns: ["material_id"];
+            isOneToOne: false;
+            referencedRelation: "EducationalMaterials";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -439,6 +617,51 @@ export type TaskTypeTask = Database["public"]["Tables"]["TaskTypes_Tasks"]["Row"
 export type Resource = Database["public"]["Tables"]["Resources"]["Row"];
 export type FileRecord = Database["public"]["Tables"]["Files"]["Row"];
 
+export type StudyGroup = Database["public"]["Tables"]["StudyGroups"]["Row"];
+export type StudyGroupInsert = Database["public"]["Tables"]["StudyGroups"]["Insert"];
+export type StudyGroupUpdate = Database["public"]["Tables"]["StudyGroups"]["Update"];
+
+export type StudyGroupConnection = Database["public"]["Tables"]["StudyGroupConnections"]["Row"];
+export type StudyGroupConnectionInsert = Database["public"]["Tables"]["StudyGroupConnections"]["Insert"];
+
+export type EducationalMaterial = Database["public"]["Tables"]["EducationalMaterials"]["Row"];
+export type EducationalMaterialInsert = Database["public"]["Tables"]["EducationalMaterials"]["Insert"];
+export type EducationalMaterialUpdate = Database["public"]["Tables"]["EducationalMaterials"]["Update"];
+
+export type TaskEducationalMaterial = Database["public"]["Tables"]["Tasks_EducationalMaterials"]["Row"];
+
+export type MaterialType =
+  | "video"
+  | "course"
+  | "guide"
+  | "website"
+  | "forum"
+  | "doc"
+  | "book"
+  | "other";
+
+export interface ConnectedGroupInfo {
+  id: string;
+  name: string;
+  parent_name?: string;
+  color?: string;
+  connection_id: string;
+  label?: string | null;
+}
+
+export interface StudyGroupWithDetails extends StudyGroup {
+  children?: StudyGroupWithDetails[];
+  parent?: StudyGroup | null;
+  materials_count?: number;
+  connected_groups?: ConnectedGroupInfo[];
+}
+
+export interface EducationalMaterialWithDetails extends EducationalMaterial {
+  group?: StudyGroup | null;
+  group_path?: string[];
+  linked_tasks?: { id: string; name: string }[];
+}
+
 export interface ResourceWithFiles extends Resource {
   files: FileRecord[];
 }
@@ -465,6 +688,7 @@ export interface TaskWithDetails extends Task {
   softwares?: Software[];
   parent_task?: Task | null;
   breadcrumbs?: TaskBreadcrumb[];
+  educational_materials?: EducationalMaterial[];
 }
 
 export interface TaskFormData {
@@ -476,6 +700,7 @@ export interface TaskFormData {
   assignee_ids?: string[];
   task_type_ids?: string[];
   software_ids?: string[];
+  educational_material_ids?: string[];
   due_date?: string | null;
 }
 

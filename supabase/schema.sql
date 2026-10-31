@@ -297,4 +297,86 @@ VALUES
     ('Illustrator', 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/illustrator/illustrator-plain.svg')
 ON CONFLICT (name) DO NOTHING;
 
+-- ============================================================
+-- 8. Educational Materials & Knowledge Hub
+-- ============================================================
+
+-- 8.1 StudyGroups table (Supports nested subgroups via parent_id)
+CREATE TABLE IF NOT EXISTS public."StudyGroups" (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    color TEXT NOT NULL DEFAULT '#3b82f6',
+    icon TEXT DEFAULT 'folder',
+    parent_id UUID REFERENCES public."StudyGroups"(id) ON DELETE CASCADE,
+    tags TEXT[] DEFAULT '{}'::TEXT[],
+    position INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 8.2 StudyGroupConnections table (Cross-group relationships)
+CREATE TABLE IF NOT EXISTS public."StudyGroupConnections" (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_group_id UUID NOT NULL REFERENCES public."StudyGroups"(id) ON DELETE CASCADE,
+    target_group_id UUID NOT NULL REFERENCES public."StudyGroups"(id) ON DELETE CASCADE,
+    label TEXT,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT unique_group_connection UNIQUE (source_group_id, target_group_id),
+    CONSTRAINT no_self_connection CHECK (source_group_id <> target_group_id)
+);
+
+-- 8.3 EducationalMaterials table
+CREATE TABLE IF NOT EXISTS public."EducationalMaterials" (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    url TEXT,
+    type TEXT NOT NULL DEFAULT 'website',
+    description TEXT,
+    group_id UUID REFERENCES public."StudyGroups"(id) ON DELETE SET NULL,
+    tags TEXT[] DEFAULT '{}'::TEXT[],
+    difficulty TEXT DEFAULT 'Intermediate',
+    is_favorite BOOLEAN DEFAULT false,
+    estimated_duration TEXT,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 8.4 Tasks_EducationalMaterials junction table
+CREATE TABLE IF NOT EXISTS public."Tasks_EducationalMaterials" (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id UUID NOT NULL REFERENCES public."Tasks"(id) ON DELETE CASCADE,
+    material_id UUID NOT NULL REFERENCES public."EducationalMaterials"(id) ON DELETE CASCADE,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT unique_task_material UNIQUE (task_id, material_id)
+);
+
+-- 8.5 Indexes
+CREATE INDEX IF NOT EXISTS idx_studygroups_parent_id ON public."StudyGroups"(parent_id);
+CREATE INDEX IF NOT EXISTS idx_materials_group_id ON public."EducationalMaterials"(group_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_edumaterials_task ON public."Tasks_EducationalMaterials"(task_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_edumaterials_mat ON public."Tasks_EducationalMaterials"(material_id);
+CREATE INDEX IF NOT EXISTS idx_groupconn_source ON public."StudyGroupConnections"(source_group_id);
+CREATE INDEX IF NOT EXISTS idx_groupconn_target ON public."StudyGroupConnections"(target_group_id);
+
+-- 8.6 Row Level Security
+ALTER TABLE public."StudyGroups" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."StudyGroupConnections" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."EducationalMaterials" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."Tasks_EducationalMaterials" ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Team access StudyGroups" ON public."StudyGroups";
+CREATE POLICY "Team access StudyGroups" ON public."StudyGroups" FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Team access StudyGroupConnections" ON public."StudyGroupConnections";
+CREATE POLICY "Team access StudyGroupConnections" ON public."StudyGroupConnections" FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Team access EducationalMaterials" ON public."EducationalMaterials";
+CREATE POLICY "Team access EducationalMaterials" ON public."EducationalMaterials" FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Team access Tasks_EducationalMaterials" ON public."Tasks_EducationalMaterials";
+CREATE POLICY "Team access Tasks_EducationalMaterials" ON public."Tasks_EducationalMaterials" FOR ALL USING (true) WITH CHECK (true);
+
+
 

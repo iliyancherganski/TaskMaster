@@ -15,6 +15,7 @@ import {
   Circle,
   Pencil,
   Trash2,
+  BookOpen,
 } from "lucide-react";
 import {
   TaskWithDetails,
@@ -191,6 +192,17 @@ function TreeNode({
             >
               <span>{isOverdue ? "Overdue: " : "Due: "}</span>
               {new Date(task.due_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+            </span>
+          )}
+
+          {/* Educational Materials */}
+          {task.educational_materials && task.educational_materials.length > 0 && (
+            <span
+              className="hidden sm:inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-medium"
+              title={`${task.educational_materials.length} educational material(s) linked`}
+            >
+              <BookOpen className="h-3 w-3" />
+              <span>{task.educational_materials.length}</span>
             </span>
           )}
 

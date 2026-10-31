@@ -6,6 +6,7 @@ import { Navbar } from "@/components/navbar/Navbar";
 import { KanbanFilterBar } from "@/components/filters/KanbanFilterBar";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { FolderExplorerView } from "@/components/explorer/FolderExplorerView";
+import { EducationHubView } from "@/components/education/EducationHubView";
 import { TaskModal } from "@/components/tasks/TaskModal";
 import { ColumnModal } from "@/components/kanban/ColumnModal";
 import { ProjectModal } from "@/components/projects/ProjectModal";
@@ -18,6 +19,11 @@ import {
   User,
   TaskWithDetails,
   Software,
+  StudyGroup,
+  StudyGroupWithDetails,
+  StudyGroupConnection,
+  EducationalMaterial,
+  EducationalMaterialWithDetails,
 } from "@/types/database.types";
 import {
   fetchBoardData,
@@ -32,6 +38,15 @@ import {
   deleteProject,
   createSoftware,
   deleteSoftware,
+  fetchEducationalHubData,
+  createStudyGroup,
+  updateStudyGroup,
+  deleteStudyGroup,
+  createGroupConnection,
+  deleteGroupConnection,
+  createEducationalMaterial,
+  updateEducationalMaterial,
+  deleteEducationalMaterial,
 } from "@/lib/supabase/actions";
 import { Loader2, Pencil, Trash2, FolderKanban } from "lucide-react";
 
@@ -45,6 +60,16 @@ export default function TaskMasterPage() {
   const [allTasks, setAllTasks] = useState<TaskWithDetails[]>([]);
   const [isConfigured, setIsConfigured] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Active Section: Board (Kanban / Explorer) vs Learning Hub
+  const [currentSection, setCurrentSection] = useState<"board" | "education">("board");
+
+  // Educational Materials State
+  const [educationalGroups, setEducationalGroups] = useState<StudyGroupWithDetails[]>([]);
+  const [flatStudyGroups, setFlatStudyGroups] = useState<StudyGroup[]>([]);
+  const [educationalMaterials, setEducationalMaterials] = useState<EducationalMaterialWithDetails[]>([]);
+  const [educationalConnections, setEducationalConnections] = useState<StudyGroupConnection[]>([]);
+  const [educationalTags, setEducationalTags] = useState<string[]>([]);
 
   // View Mode: Kanban vs Folder Structure
   const [viewMode, setViewMode] = useState<"kanban" | "folder">("kanban");
@@ -86,7 +111,10 @@ export default function TaskMasterPage() {
   // Initial load
   const loadData = async () => {
     try {
-      const data = await fetchBoardData();
+      const [data, eduData] = await Promise.all([
+        fetchBoardData(),
+        fetchEducationalHubData(),
+      ]);
       setStatuses(data.statuses);
       setProjects(data.projects);
       setTaskTypes(data.taskTypes);
@@ -95,6 +123,12 @@ export default function TaskMasterPage() {
       setTasks(data.tasks);
       setAllTasks(data.allTasks);
       setIsConfigured(data.isConfigured);
+
+      setEducationalGroups(eduData.groups);
+      setFlatStudyGroups(eduData.flatGroups);
+      setEducationalMaterials(eduData.materials);
+      setEducationalConnections(eduData.connections);
+      setEducationalTags(eduData.allTags);
 
       // Restore saved project selection from localStorage if valid
       if (typeof window !== "undefined") {
@@ -495,6 +529,72 @@ export default function TaskMasterPage() {
     }
   };
 
+  // Educational Hub Handlers
+  const handleSaveStudyGroup = async (
+    data: {
+      name: string;
+      description?: string;
+      color: string;
+      icon: string;
+      parent_id: string | null;
+      tags: string[];
+    },
+    editingGroupId?: string
+  ) => {
+    if (editingGroupId) {
+      await updateStudyGroup(editingGroupId, data);
+    } else {
+      await createStudyGroup(data);
+    }
+    await loadData();
+  };
+
+  const handleDeleteStudyGroup = async (groupId: string) => {
+    await deleteStudyGroup(groupId);
+    await loadData();
+  };
+
+  const handleConnectGroups = async (
+    sourceGroupId: string,
+    targetGroupId: string,
+    label?: string
+  ) => {
+    await createGroupConnection(sourceGroupId, targetGroupId, label);
+    await loadData();
+  };
+
+  const handleDisconnectGroups = async (connectionId: string) => {
+    await deleteGroupConnection(connectionId);
+    await loadData();
+  };
+
+  const handleSaveEducationalMaterial = async (
+    data: {
+      title: string;
+      url?: string | null;
+      type: string;
+      description?: string | null;
+      group_id?: string | null;
+      tags: string[];
+      difficulty?: string | null;
+      is_favorite?: boolean;
+      estimated_duration?: string | null;
+    },
+    editingMaterialId?: string
+  ) => {
+    if (editingMaterialId) {
+      await updateEducationalMaterial(editingMaterialId, data);
+    } else {
+      await createEducationalMaterial(data);
+    }
+    await loadData();
+  };
+
+  const handleDeleteEducationalMaterial = async (materialId: string) => {
+    await deleteEducationalMaterial(materialId);
+    await loadData();
+  };
+
   const currentProject =
     selectedProjectId !== "all" ? projects.find((p) => p.id === selectedProjectId) : null;
 
@@ -532,102 +632,127 @@ export default function TaskMasterPage() {
         selectedProjectId={selectedProjectId}
         onProjectChange={handleSelectProject}
         onNewProject={handleOpenCreateProject}
+        currentSection={currentSection}
+        onSectionChange={setCurrentSection}
+        educationalMaterialsCount={educationalMaterials.length}
       />
 
       {/* Main Workspace */}
       <main className="flex-1 flex flex-col px-4 sm:px-8 py-4 max-w-[1700px] w-full mx-auto">
-        {/* Project Header Banner when a specific project is selected */}
-        {currentProject && (
-          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/70 bg-card/60 backdrop-blur-sm px-4 py-2 shadow-xs">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <FolderKanban className="h-4 w-4" />
+        {currentSection === "education" ? (
+          <EducationHubView
+            groups={educationalGroups}
+            flatGroups={flatStudyGroups}
+            materials={educationalMaterials}
+            connections={educationalConnections}
+            allTags={educationalTags}
+            onSaveGroup={handleSaveStudyGroup}
+            onDeleteGroup={handleDeleteStudyGroup}
+            onConnectGroups={handleConnectGroups}
+            onDisconnectGroups={handleDisconnectGroups}
+            onSaveMaterial={handleSaveEducationalMaterial}
+            onDeleteMaterial={handleDeleteEducationalMaterial}
+            onOpenTask={(taskId) => {
+              setCurrentSection("board");
+              handleNavigateToTask(taskId);
+            }}
+          />
+        ) : (
+          <>
+            {/* Project Header Banner when a specific project is selected */}
+            {currentProject && (
+              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/70 bg-card/60 backdrop-blur-sm px-4 py-2 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <FolderKanban className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground leading-snug">
+                      {currentProject.name}
+                    </h1>
+                    {currentProject.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 max-w-xl leading-tight">
+                        {currentProject.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 gap-1.5 text-xs rounded-lg cursor-pointer"
+                    onClick={() => handleOpenEditProject(currentProject)}
+                  >
+                    <Pencil className="h-3 w-3 text-muted-foreground" />
+                    Edit project name
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 gap-1.5 text-xs rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 cursor-pointer"
+                    onClick={() => handleStartDeleteProject(currentProject)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Delete project
+                  </Button>
+                </div>
               </div>
-              <div className="flex flex-col justify-center">
-                <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground leading-snug">
-                  {currentProject.name}
-                </h1>
-                {currentProject.description && (
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 max-w-xl leading-tight">
-                    {currentProject.description}
-                  </p>
-                )}
-              </div>
-            </div>
+            )}
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2.5 gap-1.5 text-xs rounded-lg cursor-pointer"
-                onClick={() => handleOpenEditProject(currentProject)}
-              >
-                <Pencil className="h-3 w-3 text-muted-foreground" />
-                Edit project name
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2.5 gap-1.5 text-xs rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 cursor-pointer"
-                onClick={() => handleStartDeleteProject(currentProject)}
-              >
-                <Trash2 className="h-3 w-3" />
-                Delete project
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Filters and View Switcher Bar */}
-        <KanbanFilterBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          selectedProjectId={selectedProjectId}
-          onProjectChange={handleSelectProject}
-          selectedAssigneeId={selectedAssigneeId}
-          onAssigneeChange={setSelectedAssigneeId}
-          selectedTypeId={selectedTypeId}
-          onTypeChange={setSelectedTypeId}
-          projects={projects}
-          taskTypes={taskTypes}
-          users={users}
-          totalTasks={tasks.length}
-          completedTasks={completedCount}
-          onResetFilters={handleResetFilters}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-        />
-
-        {/* View Content: Kanban vs Folder Structure */}
-        <div className="flex-1 mt-4">
-          {viewMode === "kanban" ? (
-            <KanbanBoard
-              statuses={statuses}
-              tasks={filteredTasks}
-              onTasksChange={setTasks}
-              onAddTask={(statusId) => handleOpenCreateModal(statusId)}
-              onEditTask={handleOpenEditModal}
-              onDeleteTask={handleDeleteTask}
-              onEditColumn={handleOpenEditColumn}
-              onDeleteColumn={handleDeleteColumn}
-              onAddColumn={handleOpenAddColumn}
-              onOpenSubtask={(st) => handleNavigateToTask(st.id)}
-            />
-          ) : (
-            <FolderExplorerView
-              tasks={filteredTasks}
+            {/* Filters and View Switcher Bar */}
+            <KanbanFilterBar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              selectedProjectId={selectedProjectId}
+              onProjectChange={handleSelectProject}
+              selectedAssigneeId={selectedAssigneeId}
+              onAssigneeChange={setSelectedAssigneeId}
+              selectedTypeId={selectedTypeId}
+              onTypeChange={setSelectedTypeId}
               projects={projects}
-              statuses={statuses}
               taskTypes={taskTypes}
               users={users}
-              onOpenTask={handleOpenEditModal}
-              onAddTask={(statusId, parentTaskId) =>
-                handleOpenCreateModal(statusId, parentTaskId)
-              }
-              onDeleteTask={handleDeleteTask}
+              totalTasks={tasks.length}
+              completedTasks={completedCount}
+              onResetFilters={handleResetFilters}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
             />
-          )}
-        </div>
+
+            {/* View Content: Kanban vs Folder Structure */}
+            <div className="flex-1 mt-4">
+              {viewMode === "kanban" ? (
+                <KanbanBoard
+                  statuses={statuses}
+                  tasks={filteredTasks}
+                  onTasksChange={setTasks}
+                  onAddTask={(statusId) => handleOpenCreateModal(statusId)}
+                  onEditTask={handleOpenEditModal}
+                  onDeleteTask={handleDeleteTask}
+                  onEditColumn={handleOpenEditColumn}
+                  onDeleteColumn={handleDeleteColumn}
+                  onAddColumn={handleOpenAddColumn}
+                  onOpenSubtask={(st) => handleNavigateToTask(st.id)}
+                />
+              ) : (
+                <FolderExplorerView
+                  tasks={filteredTasks}
+                  projects={projects}
+                  statuses={statuses}
+                  taskTypes={taskTypes}
+                  users={users}
+                  onOpenTask={handleOpenEditModal}
+                  onAddTask={(statusId, parentTaskId) =>
+                    handleOpenCreateModal(statusId, parentTaskId)
+                  }
+                  onDeleteTask={handleDeleteTask}
+                />
+              )}
+            </div>
+          </>
+        )}
       </main>
 
       {/* Task Creation & Editing Dialog */}
@@ -644,6 +769,9 @@ export default function TaskMasterPage() {
         taskTypes={taskTypes}
         softwares={softwares}
         users={users}
+        allEducationalMaterials={educationalMaterials}
+        allStudyGroups={flatStudyGroups}
+        onNavigateToEducation={() => setCurrentSection("education")}
         onTaskSaved={handleTaskSaved}
         onNavigateToTask={handleNavigateToTask}
         onCreateTaskType={handleCreateTaskType}

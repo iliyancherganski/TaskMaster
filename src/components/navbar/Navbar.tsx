@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Sparkles,
   FolderKanban,
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -39,6 +40,9 @@ interface NavbarProps {
   selectedProjectId?: string;
   onProjectChange?: (projectId: string) => void;
   onNewProject?: () => void;
+  currentSection?: "board" | "education";
+  onSectionChange?: (section: "board" | "education") => void;
+  educationalMaterialsCount?: number;
 }
 
 export function Navbar({
@@ -49,6 +53,9 @@ export function Navbar({
   selectedProjectId = "all",
   onProjectChange,
   onNewProject,
+  currentSection = "board",
+  onSectionChange,
+  educationalMaterialsCount,
 }: NavbarProps) {
   const [isDbModalOpen, setIsDbModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -139,6 +146,41 @@ export function Navbar({
               </div>
             )}
           </div>
+
+          {/* Center Navigation Switcher: Tasks & Board vs Educational Materials */}
+          {onSectionChange && (
+            <div className="flex items-center p-1 rounded-xl bg-muted/50 border border-border/70 shrink-0 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => onSectionChange("board")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  currentSection === "board"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <FolderKanban className="h-3.5 w-3.5 text-primary" />
+                <span>Tasks &amp; Board</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onSectionChange("education")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  currentSection === "education"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <GraduationCap className="h-3.5 w-3.5 text-primary" />
+                <span>Learning Hub</span>
+                {educationalMaterialsCount !== undefined && educationalMaterialsCount > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-primary/10 text-primary font-mono">
+                    {educationalMaterialsCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
 
           {/* Action Center */}
           <div className="flex items-center gap-3">
