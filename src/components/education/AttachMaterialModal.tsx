@@ -38,9 +38,11 @@ import {
   Link as LinkIcon,
   Loader2,
   FolderOpen,
+  AlertTriangle,
 } from "lucide-react";
 import { MATERIAL_TYPES, getMaterialTypeMeta } from "./MaterialModal";
 import { createEducationalMaterial } from "@/lib/supabase/actions";
+import { validateMediaUrl, decodeURIComponentSafe } from "@/lib/media-utils";
 
 interface AttachMaterialModalProps {
   isOpen: boolean;
@@ -79,6 +81,7 @@ export function AttachMaterialModal({
   const [newGroupId, setNewGroupId] = useState<string>("unassigned");
   const [isSubmittingNew, setIsSubmittingNew] = useState(false);
   const [newError, setNewError] = useState<string | null>(null);
+  const [urlWarning, setUrlWarning] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -97,6 +100,7 @@ export function AttachMaterialModal({
     setNewType("website");
     setNewGroupId("unassigned");
     setNewError(null);
+    setUrlWarning(null);
   };
 
   // Toggle selection in library
@@ -109,34 +113,53 @@ export function AttachMaterialModal({
   // Auto-detect type & suggest title from URL in Add New tab
   const handleUrlChange = (urlVal: string) => {
     setNewUrl(urlVal);
-    const low = urlVal.toLowerCase();
-    if (low.includes("youtube.com") || low.includes("youtu.be") || low.includes("vimeo.com")) {
-      setNewType("video");
-    } else if (low.includes("docs.") || low.includes("documentation") || low.includes("github.com")) {
-      setNewType("doc");
-    } else if (low.includes("forum") || low.includes("reddit.com") || low.includes("community")) {
-      setNewType("forum");
-    } else if (low.includes("course") || low.includes("udemy.com") || low.includes("coursera.org")) {
-      setNewType("course");
-    }
+    setUrlWarning(null);
+    if (newError) setNewError(null);
+    if (!urlVal.trim()) return;
 
-    if (!newTitle) {
-      try {
-        const parsed = new URL(urlVal.startsWith("http") ? urlVal : `https://${urlVal}`);
-        const pathname = parsed.pathname.replace(/^\/|\/$/g, "");
-        if (pathname) {
-          const lastSegment = pathname.split("/").pop();
-          if (lastSegment && lastSegment.length > 2) {
-            const clean = decodeURIComponent(lastSegment)
-              .replace(/[-_]/g, " ")
-              .replace(/\.[^/.]+$/, "");
-            setNewTitle(clean.charAt(0).toUpperCase() + clean.slice(1));
-          }
-        } else if (parsed.hostname) {
-          setNewTitle(parsed.hostname.replace(/^www\./, ""));
+    const validated = validateMediaUrl(urlVal);
+    if (validated.isValid) {
+      if (validated.type === "youtube" || validated.type === "vimeo" || validated.type === "video") {
+        setNewType("video");
+      } else if (validated.type === "image") {
+        setNewType("doc");
+      }
+      if (!newTitle.trim() && validated.suggestedTitle) {
+        setNewTitle(validated.suggestedTitle);
+      }
+    } else {
+      const low = urlVal.toLowerCase();
+      if (low.includes("youtube.com") || low.includes("youtu.be")) {
+        setNewType("video");
+        if (validated.warning) {
+          setUrlWarning(validated.warning);
         }
-      } catch {
-        // Ignore partial URL parse errors
+      } else if (low.includes("docs.") || low.includes("documentation") || low.includes("github.com")) {
+        setNewType("doc");
+      } else if (low.includes("forum") || low.includes("reddit.com") || low.includes("community")) {
+        setNewType("forum");
+      } else if (low.includes("course") || low.includes("udemy.com") || low.includes("coursera.org")) {
+        setNewType("course");
+      }
+
+      if (!newTitle) {
+        try {
+          const parsed = new URL(urlVal.startsWith("http") ? urlVal : `https://${urlVal}`);
+          const pathname = parsed.pathname.replace(/^\/|\/$/g, "");
+          if (pathname) {
+            const lastSegment = pathname.split("/").pop();
+            if (lastSegment && lastSegment.length > 2) {
+              const clean = decodeURIComponentSafe(lastSegment)
+                .replace(/[-_]/g, " ")
+                .replace(/\.[^/.]+$/, "");
+              setNewTitle(clean.charAt(0).toUpperCase() + clean.slice(1));
+            }
+          } else if (parsed.hostname) {
+            setNewTitle(parsed.hostname.replace(/^www\./, ""));
+          }
+        } catch {
+          // Ignore partial URL parse errors
+        }
       }
     }
   };
@@ -174,6 +197,18 @@ export function AttachMaterialModal({
         !finalUrl.startsWith("mailto:")
       ) {
         finalUrl = `https://${finalUrl}`;
+      }
+
+      if (finalUrl) {
+        const low = finalUrl.toLowerCase();
+        if (low.includes("youtube.com") || low.includes("youtu.be")) {
+          const validated = validateMediaUrl(finalUrl);
+          if (!validated.isValid) {
+            setNewError(validated.warning || "Invalid YouTube video link. Please verify the link points to a video.");
+            return;
+          }
+          finalUrl = validated.url;
+        }
       }
 
       const created = await createEducationalMaterial({
@@ -522,6 +557,12 @@ export function AttachMaterialModal({
                   className="text-xs h-8"
                   autoFocus
                 />
+                {urlWarning && (
+                  <div className="flex items-start gap-1.5 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">{urlWarning}</span>
+                  </div>
+                )}
               </div>
 
               {/* Title Input */}

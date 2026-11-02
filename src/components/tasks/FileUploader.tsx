@@ -15,6 +15,9 @@ import {
   Link as LinkIcon,
   Plus,
   FileText,
+  Play,
+  Video,
+  AlertTriangle,
 } from "lucide-react";
 import {
   DndContext,
@@ -44,6 +47,14 @@ import {
   reorderTaskResources,
 } from "@/lib/supabase/actions";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import {
+  validateMediaUrl,
+  extractYouTubeId,
+  extractVimeoId,
+  isDirectVideoUrl,
+  isDirectImageUrl,
+  decodeURIComponentSafe,
+} from "@/lib/media-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -418,6 +429,317 @@ function SortableImageCard({
   );
 }
 
+interface VideoCardProps {
+  resource: ResourceWithFiles;
+  isPlaying: boolean;
+  onTogglePlay: (id: string) => void;
+  onDelete: (resource: ResourceWithFiles) => void;
+  onUpdateDescription: (id: string, description: string | null) => Promise<void>;
+}
+
+function VideoCard({
+  resource,
+  isPlaying,
+  onTogglePlay,
+  onDelete,
+  onUpdateDescription,
+}: VideoCardProps) {
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [descText, setDescText] = useState(resource.description || "");
+  const [isSavingDesc, setIsSavingDesc] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    setDescText(resource.description || "");
+  }, [resource.description]);
+
+  const fileUrl = resource.files?.[0]?.Url || "";
+  const mediaInfo = validateMediaUrl(fileUrl);
+  const ytId = extractYouTubeId(fileUrl);
+  const vimeoId = extractVimeoId(fileUrl);
+  const isDirect = isDirectVideoUrl(fileUrl) || /\.(mp4|webm|ogg|mov|m4v|avi|mkv|wmv|flv|m3u8|mpg|mpeg)/i.test(resource.name);
+
+  const thumbUrl = mediaInfo.thumbnailUrl || (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null);
+  const embedUrl = mediaInfo.embedUrl || (ytId ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&rel=0` : null);
+
+  const stepVideoFrame = (direction: -1 | 1) => {
+    const video = videoRef.current;
+    if (!video) return;
+    const stepSeconds = 0.1;
+    const nextTime = Math.min(
+      Math.max(0, video.currentTime + direction * stepSeconds),
+      video.duration || video.currentTime
+    );
+    video.currentTime = nextTime;
+  };
+
+  const handleSaveDescription = async () => {
+    setIsSavingDesc(true);
+    try {
+      await onUpdateDescription(resource.id, descText.trim() || null);
+      setIsEditingDescription(false);
+    } catch (err) {
+      console.error("Failed to save video description:", err);
+    } finally {
+      setIsSavingDesc(false);
+    }
+  };
+
+  return (
+    <div className="group relative w-full rounded-2xl border border-border/80 bg-muted/20 dark:bg-muted/10 overflow-hidden shadow-xs hover:shadow-md transition-all my-3">
+      {/* Top Header & Actions Bar */}
+      <div className="flex items-center justify-between p-3 border-b bg-card/60 gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600/10 text-red-600 dark:text-red-400 shrink-0">
+            <Video className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-xs text-foreground truncate max-w-sm">
+                {resource.name}
+              </span>
+              {ytId && (
+                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-red-600 text-white">
+                  YouTube
+                </span>
+              )}
+              {vimeoId && (
+                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-sky-500 text-white">
+                  Vimeo
+                </span>
+              )}
+              {isDirect && !ytId && !vimeoId && (
+                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-muted text-muted-foreground border">
+                  Direct Video
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Add/Edit Description button */}
+          <button
+            type="button"
+            onClick={() => setIsEditingDescription(!isEditingDescription)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+              isEditingDescription || resource.description
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+            title="Add/Edit video notes or description"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            <span className="text-[11px] font-semibold hidden sm:inline">
+              {resource.description ? "Edit Notes" : "Add Notes"}
+            </span>
+          </button>
+
+          {/* Toggle In-Place Player vs Thumbnail */}
+          <button
+            type="button"
+            onClick={() => onTogglePlay(resource.id)}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+              isPlaying
+                ? "bg-muted text-foreground hover:bg-muted/80"
+                : "bg-red-600 hover:bg-red-700 text-white shadow-xs"
+            }`}
+            title={isPlaying ? "Show video thumbnail" : "Load & play video on this page"}
+          >
+            {isPlaying ? (
+              <>
+                <ImageIcon className="h-3.5 w-3.5" />
+                <span className="text-[11px] font-semibold">Thumbnail</span>
+              </>
+            ) : (
+              <>
+                <Play className="h-3.5 w-3.5 fill-current" />
+                <span className="text-[11px] font-semibold">Play on page</span>
+              </>
+            )}
+          </button>
+
+          {/* Open Original */}
+          {fileUrl && (
+            <a
+              href={fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              title="Open video link in new tab"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          )}
+
+          {/* Delete */}
+          <button
+            type="button"
+            onClick={() => onDelete(resource)}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+            title="Delete video"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Description Editor Form */}
+      {isEditingDescription && (
+        <div className="p-3 bg-card/95 backdrop-blur-md border-b border-border/80 space-y-2.5">
+          <RichMarkdownEditor
+            value={descText}
+            onChange={setDescText}
+            placeholder="Type notes or timestamps for this video..."
+            rows={3}
+            minHeight="100px"
+            onSave={handleSaveDescription}
+          />
+          <div className="flex items-center justify-end gap-1.5 pt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => {
+                setDescText(resource.description || "");
+                setIsEditingDescription(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 px-3 text-xs"
+              onClick={handleSaveDescription}
+              disabled={isSavingDesc}
+            >
+              {isSavingDesc ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Save Description
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Video Media Area (In-place on task page): Thumbnail vs In-Place Player */}
+      <div className="relative w-full aspect-video bg-black overflow-hidden select-none">
+        {!isPlaying ? (
+          /* THUMBNAIL STATE: Click to load video on task page */
+          <div
+            onClick={() => onTogglePlay(resource.id)}
+            className="group/thumb relative h-full w-full cursor-pointer overflow-hidden flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-black"
+          >
+            {thumbUrl ? (
+              <img
+                src={thumbUrl}
+                alt={resource.name}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover/thumb:scale-105"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <Video className="h-14 w-14 text-primary/70 stroke-[1.5]" />
+                <span className="text-xs font-semibold text-foreground/80 tracking-wide uppercase">
+                  Video Preview
+                </span>
+              </div>
+            )}
+
+            {/* Gradient shadow overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/30 transition-colors group-hover/thumb:from-black/90 group-hover/thumb:via-black/40" />
+
+            {/* Centered Large Play Button */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+              <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-red-600/95 text-white shadow-2xl transition-all duration-300 transform group-hover/thumb:scale-110 group-hover/thumb:bg-red-600 ring-4 ring-white/20">
+                <Play className="ml-1 h-7 w-7 sm:h-9 sm:w-9 fill-current" />
+              </div>
+              <span className="px-3 py-1 rounded-full bg-black/70 backdrop-blur-md text-[11px] font-semibold text-white/90 border border-white/10 shadow-lg tracking-wide">
+                Click to play video on page
+              </span>
+            </div>
+          </div>
+        ) : (
+          /* IN-PLACE PLAYER STATE: Loaded on the task page */
+          <div className="h-full w-full bg-black flex flex-col justify-center">
+            {embedUrl ? (
+              <iframe
+                src={embedUrl}
+                title={resource.name}
+                className="h-full w-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            ) : isDirect ? (
+              <div className="relative h-full w-full flex flex-col">
+                <video
+                  ref={videoRef}
+                  controls
+                  autoPlay
+                  playsInline
+                  preload="metadata"
+                  className="h-full w-full bg-black object-contain"
+                >
+                  <source src={fileUrl} />
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
+                <AlertTriangle className="h-8 w-8 text-amber-500 mb-2" />
+                <p>Unable to load video player for this URL directly.</p>
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-primary hover:underline font-semibold"
+                >
+                  <span>Open Video in New Tab</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Direct Video Frame-Stepping Controls (when direct video is playing) */}
+      {isPlaying && isDirect && !embedUrl && (
+        <div className="flex items-center justify-center gap-2 p-2 bg-slate-900 border-t border-border/40 text-xs">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => stepVideoFrame(-1)}
+            className="h-7 px-3 text-xs bg-slate-800 text-white border-slate-700 hover:bg-slate-700 cursor-pointer"
+          >
+            −0.1s
+          </Button>
+          <span className="text-[11px] text-muted-foreground font-mono">Frame Step</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => stepVideoFrame(1)}
+            className="h-7 px-3 text-xs bg-slate-800 text-white border-slate-700 hover:bg-slate-700 cursor-pointer"
+          >
+            +0.1s
+          </Button>
+        </div>
+      )}
+
+      {/* Description display if saved */}
+      {Boolean(resource.description && resource.description.trim()) && !isEditingDescription && (
+        <div className="px-5 py-3 bg-card/90 border-t">
+          <div className="text-xs sm:text-sm font-medium text-foreground leading-relaxed">
+            <MarkdownRenderer content={resource.description || ""} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function FileUploader({
   taskId,
   initialResources = [],
@@ -427,7 +749,9 @@ export function FileUploader({
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
+  const [previewMedia, setPreviewMedia] = useState<{ url: string; name: string } | null>(null);
+  const [mediaWarning, setMediaWarning] = useState<string | null>(null);
+  const [playingVideoIds, setPlayingVideoIds] = useState<Record<string, boolean>>({});
   const [resourceToDelete, setResourceToDelete] = useState<ResourceWithFiles | null>(null);
   const [isDeletingResource, setIsDeletingResource] = useState(false);
 
@@ -501,15 +825,29 @@ export function FileUploader({
     return pattern.test(name) || (url ? pattern.test(url) : false);
   };
 
-  const imageResources = resources.filter((res) => {
-    const fileUrl = res.files?.[0]?.Url;
-    return isImageFile(res.name, fileUrl);
-  });
+  const isVideoFile = (name: string, url?: string) => {
+    const pattern = /\.(mp4|webm|ogg|mov|m4v|avi|mkv|wmv|flv|m3u8|mpg|mpeg|3gp|3g2)/i;
+    return pattern.test(name) || (url ? pattern.test(url) : false);
+  };
 
-  const otherResources = resources.filter((res) => {
+  const isResourceImage = (res: ResourceWithFiles) => {
     const fileUrl = res.files?.[0]?.Url;
-    return !isImageFile(res.name, fileUrl);
-  });
+    return isDirectImageUrl(fileUrl) || isImageFile(res.name, fileUrl);
+  };
+
+  const isResourceVideo = (res: ResourceWithFiles) => {
+    const fileUrl = res.files?.[0]?.Url;
+    return (
+      extractYouTubeId(fileUrl) !== null ||
+      extractVimeoId(fileUrl) !== null ||
+      isDirectVideoUrl(fileUrl) ||
+      isVideoFile(res.name, fileUrl)
+    );
+  };
+
+  const imageResources = resources.filter(isResourceImage);
+  const videoResources = resources.filter((r) => !isResourceImage(r) && isResourceVideo(r));
+  const docResources = resources.filter((r) => !isResourceImage(r) && !isResourceVideo(r));
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -566,7 +904,12 @@ export function FileUploader({
       const updated = resources.filter((r) => r.id !== resourceId);
       setResources(updated);
       onResourcesUpdated?.(updated);
-      if (previewImage) setPreviewImage(null);
+      setPlayingVideoIds((prev) => {
+        const next = { ...prev };
+        delete next[resourceId];
+        return next;
+      });
+      if (previewMedia) setPreviewMedia(null);
     } catch (err: any) {
       console.error("Failed to delete attachment:", err);
     }
@@ -589,7 +932,7 @@ export function FileUploader({
 
     if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
       const reorderedImages = arrayMove(imageResources, oldIndex, newIndex);
-      const newAllResources = [...reorderedImages, ...otherResources];
+      const newAllResources = [...reorderedImages, ...videoResources, ...docResources];
       setResources(newAllResources);
 
       // Persist the new resource order in storage/backend
@@ -600,29 +943,46 @@ export function FileUploader({
     }
   };
 
-  // Add Image via direct URL
-  const handleAddImageUrl = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const url = imageUrlInput.trim();
-    if (!url) return;
+  // Add media via direct URL
+  const handleAddImageUrl = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const rawUrl = imageUrlInput.trim();
+    if (!rawUrl) return;
+
+    const validated = validateMediaUrl(rawUrl);
+    if (!validated.isValid) {
+      setError(null);
+      setMediaWarning(
+        validated.warning ||
+          "Unsupported link format. Please provide a YouTube link, Vimeo link, direct video (.mp4, .webm), or direct image URL."
+      );
+      return;
+    }
 
     setIsAddingUrl(true);
     setError(null);
+    setMediaWarning(null);
 
     try {
       let newResource: ResourceWithFiles;
+      let resourceName = validated.suggestedTitle || "Web Media";
+      if (validated.type === "youtube") {
+        resourceName = "YouTube Video";
+      } else if (validated.type === "vimeo") {
+        resourceName = "Vimeo Video";
+      }
 
       if (!isSupabaseConfigured) {
         newResource = {
           id: "res-url-" + Date.now(),
-          name: url.split("/").pop()?.split("?")[0] || "Web Image",
+          name: resourceName,
           description: null,
           Task_Id: taskId,
           created_at: new Date().toISOString(),
           files: [
             {
               id: "file-url-" + Date.now(),
-              Url: url,
+              Url: validated.url,
               Resource_Id: "res-url-" + Date.now(),
               created_at: new Date().toISOString(),
             },
@@ -632,7 +992,7 @@ export function FileUploader({
         const { data: resData, error: resErr } = await supabase
           .from("Resources")
           .insert({
-            name: url.split("/").pop()?.split("?")[0] || "Web Image",
+            name: resourceName,
             description: null,
             Task_Id: taskId,
           })
@@ -644,7 +1004,7 @@ export function FileUploader({
         const { data: fileData, error: fileErr } = await supabase
           .from("Files")
           .insert({
-            Url: url,
+            Url: validated.url,
             Resource_Id: resData.id,
           })
           .select()
@@ -663,8 +1023,9 @@ export function FileUploader({
       onResourcesUpdated?.(updated);
       setImageUrlInput("");
     } catch (err: any) {
-      console.error("Failed to add image URL:", err);
-      setError(err.message || "Failed to add image from URL");
+      console.error("Failed to add media URL:", err);
+      setError(err.message || "Failed to add media from URL");
+      setMediaWarning(null);
     } finally {
       setIsAddingUrl(false);
     }
@@ -711,7 +1072,7 @@ export function FileUploader({
                     resource={resource}
                     isShrunk={Boolean(shrinkMap[resource.id])}
                     onToggleShrink={toggleShrink}
-                    onPreview={(url, name) => setPreviewImage({ url, name })}
+                    onPreview={(url, name) => setPreviewMedia({ url, name })}
                     onDelete={(res) => setResourceToDelete(res)}
                     onUpdateDescription={handleUpdateDescription}
                   />
@@ -722,17 +1083,46 @@ export function FileUploader({
         </div>
       )}
 
-      {/* Non-Image Documents Section */}
-      {otherResources.length > 0 && (
+      {/* Video Clips & Media Section (Loaded in-place on the task page with clickable thumbnail) */}
+      {videoResources.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Video className="h-4 w-4 text-primary" />
+              <span>Attached Videos & Clips ({videoResources.length})</span>
+            </span>
+          </div>
+
+          <div className="space-y-4">
+            {videoResources.map((resource) => (
+              <VideoCard
+                key={resource.id}
+                resource={resource}
+                isPlaying={Boolean(playingVideoIds[resource.id])}
+                onTogglePlay={(id) =>
+                  setPlayingVideoIds((prev) => ({
+                    ...prev,
+                    [id]: !prev[id],
+                  }))
+                }
+                onDelete={(res) => setResourceToDelete(res)}
+                onUpdateDescription={handleUpdateDescription}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Non-Image & Non-Video Documents Section */}
+      {docResources.length > 0 && (
         <div className="space-y-1.5 pt-2">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Documents & Other Files ({otherResources.length})
+            Documents & Other Files ({docResources.length})
           </span>
 
           <div className="divide-y divide-border rounded-xl border bg-card/60 text-xs overflow-hidden">
-            {otherResources.map((resource) => {
+            {docResources.map((resource) => {
               const fileUrl = resource.files?.[0]?.Url;
-
               return (
                 <div
                   key={resource.id}
@@ -743,13 +1133,9 @@ export function FileUploader({
                       <FileIcon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold text-foreground truncate max-w-sm">
-                        {resource.name}
-                      </p>
+                      <p className="font-semibold text-foreground truncate max-w-sm">{resource.name}</p>
                       {resource.description && (
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {resource.description}
-                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate">{resource.description}</p>
                       )}
                     </div>
                   </div>
@@ -760,7 +1146,7 @@ export function FileUploader({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground cursor-pointer"
                         asChild
                       >
                         <a href={fileUrl} target="_blank" rel="noopener noreferrer" title="Open file">
@@ -772,7 +1158,7 @@ export function FileUploader({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive cursor-pointer"
                       onClick={() => setResourceToDelete(resource)}
                       title="Delete attachment"
                     >
@@ -786,7 +1172,7 @@ export function FileUploader({
         </div>
       )}
 
-      {/* Upload & Add Attachments (Placed at the bottom after images) */}
+      {/* Upload & Add Attachments (Placed at the bottom after images & videos) */}
       <div className="pt-2 border-t space-y-3">
         {/* Drag & Drop File Upload Area */}
         <div
@@ -811,33 +1197,53 @@ export function FileUploader({
             <UploadCloud className="h-5 w-5" />
           </div>
           <p className="text-xs font-semibold text-foreground">
-            <span className="text-primary hover:underline">Click to upload files</span> or drag and drop images here
+            <span className="text-primary hover:underline">Click to upload files</span> or drag and drop images and videos here
           </p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Full resolution photos, diagrams, and documents
+            Full resolution photos, diagrams, video files (.mp4), and documents
           </p>
         </div>
 
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <p className="text-xs text-destructive font-medium">{error}</p>}
+        {mediaWarning && (
+          <div className="flex items-start gap-2 p-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{mediaWarning}</span>
+          </div>
+        )}
 
-        {/* Add Image via Direct URL Input */}
-        <form onSubmit={handleAddImageUrl} className="pt-1">
+        {/* Add Media via Direct URL Input */}
+        <div
+          className="pt-1 space-y-2"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.stopPropagation();
+              handleAddImageUrl();
+            }
+          }}
+        >
           <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-1.5">
-            <LinkIcon className="h-3.5 w-3.5" /> Add Image from URL Link
+            <LinkIcon className="h-3.5 w-3.5" /> Add Media from URL Link
           </label>
           <div className="flex items-center gap-2">
             <Input
-              placeholder="https://example.com/diagram.png..."
+              placeholder="https://youtube.com/watch?v=..., https://example.com/clip.mp4, or image URL"
               value={imageUrlInput}
-              onChange={(e) => setImageUrlInput(e.target.value)}
+              onChange={(e) => {
+                setImageUrlInput(e.target.value);
+                if (mediaWarning) setMediaWarning(null);
+                if (error) setError(null);
+              }}
               className="h-9 text-xs"
               disabled={isAddingUrl}
             />
             <Button
-              type="submit"
+              type="button"
+              onClick={() => handleAddImageUrl()}
               size="sm"
               variant="secondary"
-              className="h-9 px-3 text-xs shrink-0 gap-1.5"
+              className="h-9 px-3 text-xs shrink-0 gap-1.5 cursor-pointer"
               disabled={isAddingUrl || !imageUrlInput.trim()}
             >
               {isAddingUrl ? (
@@ -849,8 +1255,46 @@ export function FileUploader({
               )}
             </Button>
           </div>
-        </form>
+        </div>
       </div>
+
+      {previewMedia && (
+        <div
+          className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setPreviewMedia(null)}
+        >
+          <div
+            className="relative max-w-4xl w-full max-h-[85vh] bg-background rounded-2xl overflow-hidden shadow-2xl p-2 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-3 border-b">
+              <span className="text-sm font-semibold truncate max-w-md">{previewMedia.name}</span>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" asChild className="h-8 text-xs">
+                  <a href={previewMedia.url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" /> Open Original
+                  </a>
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewMedia(null)}
+                  className="rounded-lg p-1 text-muted-foreground hover:text-foreground text-sm font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="p-3 flex items-center justify-center max-h-[75vh] overflow-auto">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewMedia.url}
+                alt={previewMedia.name}
+                className="max-h-[70vh] w-auto object-contain rounded-xl shadow-md"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Attachment Confirmation Dialog */}
       <ConfirmDialog
@@ -873,44 +1317,6 @@ export function FileUploader({
         }}
       />
 
-      {/* Image Lightbox Modal */}
-      {previewImage && (
-        <div
-          className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div
-            className="relative max-w-4xl w-full max-h-[85vh] bg-background rounded-2xl overflow-hidden shadow-2xl p-2 flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-3 border-b">
-              <span className="text-sm font-semibold truncate max-w-md">{previewImage.name}</span>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" asChild className="h-8 text-xs">
-                  <a href={previewImage.url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-3.5 w-3.5 mr-1" /> Open Original
-                  </a>
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewImage(null)}
-                  className="rounded-lg p-1 text-muted-foreground hover:text-foreground text-sm font-bold"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            <div className="p-3 flex items-center justify-center max-h-[75vh] overflow-auto">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={previewImage.url}
-                alt={previewImage.name}
-                className="max-h-[70vh] w-auto object-contain rounded-xl shadow-md"
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

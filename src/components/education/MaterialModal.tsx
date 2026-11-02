@@ -25,6 +25,7 @@ import {
   EducationalMaterial,
   MaterialType,
 } from "@/types/database.types";
+import { validateMediaUrl } from "@/lib/media-utils";
 import {
   Video,
   GraduationCap,
@@ -171,9 +172,26 @@ export function MaterialModal({
     setError(null);
 
     try {
+      let finalUrl = url.trim() || null;
+      if (finalUrl) {
+        if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://") && !finalUrl.startsWith("mailto:")) {
+          finalUrl = `https://${finalUrl}`;
+        }
+        const low = finalUrl.toLowerCase();
+        if (low.includes("youtube.com") || low.includes("youtu.be")) {
+          const validated = validateMediaUrl(finalUrl);
+          if (!validated.isValid) {
+            setError(validated.warning || "Invalid YouTube video link. Please verify the link points to a video.");
+            setIsSubmitting(false);
+            return;
+          }
+          finalUrl = validated.url;
+        }
+      }
+
       await onSave({
         title: title.trim(),
-        url: url.trim() || null,
+        url: finalUrl,
         type,
         group_id: groupId === "none" ? null : groupId,
         description: description.trim() || null,

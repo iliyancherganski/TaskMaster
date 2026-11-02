@@ -75,8 +75,16 @@ import {
   ExternalLink,
   MoreHorizontal,
   ChevronDown,
+  Play,
+  Video,
+  ImageIcon,
 } from "lucide-react";
 import { formatDeadlineDate, getDeadlineTimeRemaining } from "@/lib/date-utils";
+import {
+  extractYouTubeId,
+  extractVimeoId,
+  isDirectVideoUrl,
+} from "@/lib/media-utils";
 
 const TYPE_COLORS = [
   "#3b82f6", // Blue
@@ -173,6 +181,7 @@ export function TaskModal({
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
   const [localMaterials, setLocalMaterials] = useState<EducationalMaterialWithDetails[]>(allEducationalMaterials);
   const [isAttachMaterialOpen, setIsAttachMaterialOpen] = useState(false);
+  const [playingMaterialIds, setPlayingMaterialIds] = useState<Record<string, boolean>>({});
   const [dueDate, setDueDate] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1715,6 +1724,201 @@ export function TaskModal({
                     const groupObj = mat.group_id
                       ? allStudyGroups.find((g) => g.id === mat.group_id)
                       : null;
+
+                    const ytId = extractYouTubeId(mat.url);
+                    const vimeoId = extractVimeoId(mat.url);
+                    const isDirectVideo = isDirectVideoUrl(mat.url);
+                    const isVideo = Boolean(ytId || vimeoId || isDirectVideo || mat.type === "video");
+                    const isPlaying = Boolean(playingMaterialIds[mat.id]);
+                    const ytThumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
+                    const embedUrl = ytId
+                      ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&rel=0`
+                      : vimeoId
+                      ? `https://player.vimeo.com/video/${vimeoId}?autoplay=1`
+                      : null;
+
+                    if (isVideo && mat.url) {
+                      return (
+                        <div
+                          key={mat.id}
+                          className="col-span-1 sm:col-span-2 flex flex-col rounded-2xl border border-border/80 bg-card overflow-hidden shadow-xs hover:shadow-md transition-all text-xs group/mat"
+                        >
+                          {/* Card Header */}
+                          <div className="flex items-center justify-between p-2.5 sm:px-3.5 border-b bg-muted/20 gap-2">
+                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold text-white"
+                                style={{ backgroundColor: typeMeta.color }}
+                              >
+                                <TypeIcon className="h-3 w-3" />
+                                <span>{typeMeta.label}</span>
+                              </span>
+                              {groupObj ? (
+                                <span className="text-[10px] text-muted-foreground font-medium">
+                                  {groupObj.name}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground/70 font-medium bg-muted/60 px-1.5 py-0.2 rounded border border-border/40">
+                                  Unassigned
+                                </span>
+                              )}
+                              {mat.estimated_duration && (
+                                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                  <Clock className="h-2.5 w-2.5" />
+                                  {mat.estimated_duration}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPlayingMaterialIds((prev) => ({
+                                    ...prev,
+                                    [mat.id]: !prev[mat.id],
+                                  }))
+                                }
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
+                                  isPlaying
+                                    ? "bg-muted text-foreground hover:bg-muted/80"
+                                    : "bg-red-600 hover:bg-red-700 text-white shadow-xs"
+                                }`}
+                                title={isPlaying ? "Show video thumbnail" : "Load & play video on this page"}
+                              >
+                                {isPlaying ? (
+                                  <>
+                                    <ImageIcon className="h-3 w-3" />
+                                    <span>Thumbnail</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play className="h-3 w-3 fill-current" />
+                                    <span>Play on page</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {mat.url && (
+                                <a
+                                  href={mat.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                                  title="Open video link in new tab"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              )}
+
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0 cursor-pointer"
+                                title="Remove attachment"
+                                onClick={() => handleRemoveMaterialInViewMode(mat.id)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* In-Place Video Player vs Clickable Thumbnail */}
+                          <div className="relative w-full aspect-video bg-black overflow-hidden select-none">
+                            {!isPlaying ? (
+                              /* Thumbnail state with play button overlay */
+                              <div
+                                onClick={() =>
+                                  setPlayingMaterialIds((prev) => ({
+                                    ...prev,
+                                    [mat.id]: true,
+                                  }))
+                                }
+                                className="group/thumb relative h-full w-full cursor-pointer overflow-hidden flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-black"
+                              >
+                                {ytThumb ? (
+                                  <img
+                                    src={ytThumb}
+                                    alt={mat.title}
+                                    className="h-full w-full object-cover transition-transform duration-500 group-hover/thumb:scale-105"
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                                    <Video className="h-12 w-12 text-primary/70 stroke-[1.5]" />
+                                    <span className="text-xs font-semibold text-foreground/80 tracking-wide uppercase">
+                                      Video Preview
+                                    </span>
+                                  </div>
+                                )}
+
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-black/25 transition-colors group-hover/thumb:from-black/90 group-hover/thumb:via-black/35" />
+
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 pointer-events-none">
+                                  <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-red-600/95 text-white shadow-2xl transition-all duration-300 transform group-hover/thumb:scale-110 group-hover/thumb:bg-red-600 ring-4 ring-white/20">
+                                    <Play className="ml-1 h-6 w-6 sm:h-8 sm:w-8 fill-current" />
+                                  </div>
+                                  <span className="px-2.5 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-[10px] font-semibold text-white/90 border border-white/10 shadow-lg tracking-wide">
+                                    Click to play video on page
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              /* In-Place Player state */
+                              <div className="h-full w-full bg-black flex flex-col justify-center">
+                                {embedUrl ? (
+                                  <iframe
+                                    src={embedUrl}
+                                    title={mat.title}
+                                    className="h-full w-full border-0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    referrerPolicy="strict-origin-when-cross-origin"
+                                    allowFullScreen
+                                  />
+                                ) : isDirectVideo ? (
+                                  <video
+                                    controls
+                                    autoPlay
+                                    playsInline
+                                    preload="metadata"
+                                    className="h-full w-full bg-black object-contain"
+                                  >
+                                    <source src={mat.url} />
+                                    Your browser does not support the video tag.
+                                  </video>
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
+                                    <AlertTriangle className="h-8 w-8 text-amber-500 mb-2" />
+                                    <p>Unable to load video player directly.</p>
+                                    <a
+                                      href={mat.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="mt-2 inline-flex items-center gap-1 text-primary hover:underline font-semibold"
+                                    >
+                                      <span>Open Video in New Tab</span>
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Title & Description under player */}
+                          <div className="p-3 bg-card space-y-1">
+                            <div className="font-semibold text-foreground text-xs leading-snug flex items-center gap-1">
+                              <span>{mat.title}</span>
+                            </div>
+                            {mat.description && (
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                {mat.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div
