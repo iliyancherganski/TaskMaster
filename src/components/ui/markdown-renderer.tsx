@@ -12,10 +12,38 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
+/**
+ * Preserves consecutive empty lines (created with multiple Enters).
+ * Standard Markdown collapses all blank lines into a single paragraph margin.
+ * This converts each extra newline beyond 2 into a non-breaking space paragraph,
+ * while safely ignoring fenced code blocks.
+ */
+function preserveEmptyLines(content: string): string {
+  if (!content) return "";
+  const normalized = content.replace(/\r\n/g, "\n").replace(/\n[ \t]+(?=\n)/g, "\n");
+  const parts = normalized.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g);
+
+  return parts
+    .map((part, index) => {
+      // Odd indices are code blocks - preserve verbatim
+      if (index % 2 === 1) {
+        return part;
+      }
+      // For prose, convert 3 or more consecutive newlines into visible empty lines
+      return part.replace(/\n{3,}/g, (match) => {
+        const extraCount = match.length - 2;
+        return "\n\n" + "&nbsp;\n\n".repeat(extraCount);
+      });
+    })
+    .join("");
+}
+
 export function MarkdownRenderer({ content, className = "" }: MarkdownRendererProps) {
   if (!content || !content.trim()) {
     return null;
   }
+
+  const processedContent = preserveEmptyLines(content);
 
   return (
     <div className={`prose dark:prose-invert max-w-none text-foreground ${className}`}>
@@ -47,7 +75,7 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
             <h3 className="text-base sm:text-lg font-semibold mt-2 mb-1 text-foreground" {...props} />
           ),
           p: ({ node, ...props }) => (
-            <p className="my-1.5 leading-relaxed text-foreground" {...props} />
+            <p className="my-1.5 leading-relaxed text-foreground min-h-[1.25em]" {...props} />
           ),
           ul: ({ node, ...props }) => (
             <ul className="list-disc list-outside pl-5 space-y-1 my-2 text-foreground" {...props} />
@@ -98,7 +126,7 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
           ),
         }}
       >
-        {content}
+        {processedContent}
       </ReactMarkdown>
     </div>
   );

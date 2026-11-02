@@ -771,6 +771,9 @@ export default function TaskMasterPage() {
         users={users}
         allEducationalMaterials={educationalMaterials}
         allStudyGroups={flatStudyGroups}
+        onCreateEducationalMaterial={(newMat) =>
+          setEducationalMaterials((prev) => [newMat as EducationalMaterialWithDetails, ...prev])
+        }
         onNavigateToEducation={() => setCurrentSection("education")}
         onTaskSaved={handleTaskSaved}
         onNavigateToTask={handleNavigateToTask}

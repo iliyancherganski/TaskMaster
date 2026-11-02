@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
+import { formatDeadlineDate, getDeadlineTimeRemaining } from "@/lib/date-utils";
 
 interface FolderExplorerViewProps {
   tasks: TaskWithDetails[];
@@ -72,6 +73,10 @@ function TreeNode({
       ? due.getTime()
       : new Date(due.getFullYear(), due.getMonth(), due.getDate(), 23, 59, 59, 999).getTime();
     return dueTime < Date.now();
+  }, [task.due_date]);
+
+  const deadlineRemaining = React.useMemo(() => {
+    return getDeadlineTimeRemaining(task.due_date);
   }, [task.due_date]);
 
   return (
@@ -184,14 +189,23 @@ function TreeNode({
           {/* Deadline */}
           {task.due_date && (
             <span
-              className={`hidden sm:inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
+              className={`hidden sm:inline-flex items-center gap-1.5 text-[10px] px-1.5 py-0.5 rounded border ${
                 isOverdue
                   ? "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30 font-bold"
                   : "bg-muted text-muted-foreground border-border/50"
               }`}
+              title={
+                isOverdue
+                  ? `Overdue deadline: ${formatDeadlineDate(task.due_date)}`
+                  : `Deadline: ${formatDeadlineDate(task.due_date)}`
+              }
             >
-              <span>{isOverdue ? "Overdue: " : "Due: "}</span>
-              {new Date(task.due_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              <span>{formatDeadlineDate(task.due_date)}</span>
+              {deadlineRemaining && (
+                <span className={`text-[9px] px-1 py-0.2 rounded border font-semibold ${deadlineRemaining.badgeStyle}`}>
+                  {deadlineRemaining.shortLabel}
+                </span>
+              )}
             </span>
           )}
 

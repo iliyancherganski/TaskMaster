@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getInitials } from "@/lib/utils";
+import { formatDeadlineDate, getDeadlineTimeRemaining } from "@/lib/date-utils";
 
 interface KanbanCardProps {
   task: TaskWithDetails;
@@ -90,6 +91,10 @@ export function KanbanCard({
       ? due.getTime()
       : new Date(due.getFullYear(), due.getMonth(), due.getDate(), 23, 59, 59, 999).getTime();
     return dueTime < Date.now();
+  }, [task.due_date]);
+
+  const deadlineRemaining = React.useMemo(() => {
+    return getDeadlineTimeRemaining(task.due_date);
   }, [task.due_date]);
 
   const isEdited = React.useMemo(() => {
@@ -337,22 +342,26 @@ export function KanbanCard({
 
           {task.due_date && (
             <span
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium border shrink-0 transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium border shrink-0 transition-colors ${
                 isOverdue
                   ? "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30 font-bold"
                   : "bg-muted/60 text-muted-foreground border-border/50"
               }`}
               title={
                 isOverdue
-                  ? `Overdue deadline: ${new Date(task.due_date).toLocaleString()}`
-                  : `Deadline: ${new Date(task.due_date).toLocaleString()}`
+                  ? `Overdue deadline: ${formatDeadlineDate(task.due_date)}`
+                  : `Deadline: ${formatDeadlineDate(task.due_date)}`
               }
             >
               <Calendar className={`h-3 w-3 ${isOverdue ? "text-red-500 stroke-[2.5]" : ""}`} />
               <span>
-                {isOverdue ? "Overdue: " : "Due: "}
-                {new Date(task.due_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                {formatDeadlineDate(task.due_date)}
               </span>
+              {deadlineRemaining && (
+                <span className={`text-[9px] px-1 py-0.2 rounded border font-semibold ${deadlineRemaining.badgeStyle}`}>
+                  {deadlineRemaining.shortLabel}
+                </span>
+              )}
             </span>
           )}
         </div>
