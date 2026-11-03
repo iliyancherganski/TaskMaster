@@ -51,7 +51,12 @@ import {
   Software,
   TaskFormData,
 } from "@/types/database.types";
-import { createTask, deleteTask, toggleSubtaskStatus } from "@/lib/supabase/actions";
+import {
+  createTask,
+  deleteTask,
+  toggleSubtaskStatus,
+  reorderSubtasks,
+} from "@/lib/supabase/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -110,7 +115,10 @@ function SortableSubtaskItem({
     transition,
   };
 
-  const isDone = st.status_id === doneStatus?.id;
+  const isDone =
+    st.status_id === doneStatus?.id ||
+    st.status?.name?.toLowerCase().includes("done") ||
+    (st as any).completed;
   const currentStatus = statuses.find((s) => s.id === st.status_id);
   const hasChildren = st.subtasks && st.subtasks.length > 0;
 
@@ -573,7 +581,35 @@ export function FolderTreeList({
   onSubtasksUpdated,
   onOpenSubtask,
 }: FolderTreeListProps) {
-  const [subtasks, setSubtasks] = useState<TaskWithDetails[]>(parentTask.subtasks || []);
+  const getOrderedSubtasks = React.useCallback(
+    (taskList: TaskWithDetails[]) => {
+      if (!taskList || taskList.length <= 1) return taskList || [];
+      if (typeof window !== "undefined") {
+        try {
+          const cachedOrder = localStorage.getItem(`task_subtasks_order_${parentTask.id}`);
+          if (cachedOrder) {
+            const orderArr: string[] = JSON.parse(cachedOrder);
+            const copy = [...taskList];
+            copy.sort((a, b) => {
+              const idxA = orderArr.indexOf(a.id);
+              const idxB = orderArr.indexOf(b.id);
+              if (idxA === -1 && idxB === -1) return (a.position ?? 0) - (b.position ?? 0);
+              if (idxA === -1) return 1;
+              if (idxB === -1) return -1;
+              return idxA - idxB;
+            });
+            return copy;
+          }
+        } catch (e) {}
+      }
+      return [...taskList].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    },
+    [parentTask.id]
+  );
+
+  const [subtasks, setSubtasks] = useState<TaskWithDetails[]>(() =>
+    getOrderedSubtasks(parentTask.subtasks || [])
+  );
   const [viewMode, setViewMode] = useState<SubtaskViewMode>(() => getSavedViewMode(parentTask.id));
 
   // Sync preference whenever the active parent task changes
@@ -614,29 +650,41 @@ export function FolderTreeList({
     })
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
     const oldIndex = subtasks.findIndex((s) => s.id === active.id);
     const newIndex = subtasks.findIndex((s) => s.id === over.id);
 
-    if (oldIndex !== -1 && newIndex !== -1) {
+    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
       const reordered = arrayMove(subtasks, oldIndex, newIndex);
       setSubtasks(reordered);
+      parentTask.subtasks = reordered;
+
+      // 1. Persist the new order in storage and backend
+      const orderedIds = reordered.map((st) => st.id);
+      await reorderSubtasks(parentTask.id, orderedIds);
+
+      // 2. Notify parent modal and page
       onSubtasksUpdated?.(reordered);
     }
   };
 
   // Sync subtasks if parentTask changes
   React.useEffect(() => {
-    setSubtasks(parentTask.subtasks || []);
-  }, [parentTask.subtasks]);
+    setSubtasks(getOrderedSubtasks(parentTask.subtasks || []));
+  }, [parentTask.subtasks, getOrderedSubtasks]);
 
   const doneStatus = statuses.find((s) => s.name.toLowerCase().includes("done")) || statuses[statuses.length - 1];
   const todoStatus = statuses.find((s) => s.name.toLowerCase().includes("to do") || s.name.toLowerCase().includes("todo")) || statuses[0];
 
-  const completedCount = subtasks.filter((st) => st.status_id === doneStatus?.id).length;
+  const completedCount = subtasks.filter(
+    (st) =>
+      st.status_id === doneStatus?.id ||
+      st.status?.name?.toLowerCase().includes("done") ||
+      (st as any).completed
+  ).length;
   const progress = subtasks.length > 0 ? Math.round((completedCount / subtasks.length) * 100) : 0;
 
   const handleCreateSubtask = async (e?: React.FormEvent) => {
@@ -658,6 +706,13 @@ export function FolderTreeList({
       const created = await createTask(formData);
       const updated = [...subtasks, created];
       setSubtasks(updated);
+      parentTask.subtasks = updated;
+      if (typeof window !== "undefined") {
+        try {
+          const orderedIds = updated.map((st) => st.id);
+          localStorage.setItem(`task_subtasks_order_${parentTask.id}`, JSON.stringify(orderedIds));
+        } catch (e) {}
+      }
       onSubtasksUpdated?.(updated);
 
       // Reset form
@@ -675,11 +730,17 @@ export function FolderTreeList({
 
   const handleToggle = async (st: TaskWithDetails) => {
     if (!doneStatus || !todoStatus) return;
-    const isDone = st.status_id === doneStatus.id;
+    const isDone =
+      st.status_id === doneStatus.id ||
+      st.status?.name?.toLowerCase().includes("done") ||
+      (st as any).completed;
     const nextStatusId = isDone ? todoStatus.id : doneStatus.id;
+    const nextStatus = statuses.find((s) => s.id === nextStatusId);
 
     const updated = subtasks.map((item) =>
-      item.id === st.id ? { ...item, status_id: nextStatusId } : item
+      item.id === st.id
+        ? { ...item, status_id: nextStatusId, status: nextStatus || item.status }
+        : item
     );
     setSubtasks(updated);
     onSubtasksUpdated?.(updated);
@@ -700,6 +761,13 @@ export function FolderTreeList({
   const handleDelete = async (subtaskId: string) => {
     const updated = subtasks.filter((st) => st.id !== subtaskId);
     setSubtasks(updated);
+    parentTask.subtasks = updated;
+    if (typeof window !== "undefined") {
+      try {
+        const orderedIds = updated.map((st) => st.id);
+        localStorage.setItem(`task_subtasks_order_${parentTask.id}`, JSON.stringify(orderedIds));
+      } catch (e) {}
+    }
     onSubtasksUpdated?.(updated);
 
     try {

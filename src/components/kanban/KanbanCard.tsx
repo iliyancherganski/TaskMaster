@@ -32,6 +32,7 @@ import { formatDeadlineDate, getDeadlineTimeRemaining } from "@/lib/date-utils";
 interface KanbanCardProps {
   task: TaskWithDetails;
   status?: Status;
+  allStatuses?: Status[];
   isOverlay?: boolean;
   onEdit?: (task: TaskWithDetails) => void;
   onDelete?: (taskId: string) => void;
@@ -41,6 +42,7 @@ interface KanbanCardProps {
 export function KanbanCard({
   task,
   status,
+  allStatuses,
   isOverlay = false,
   onEdit,
   onDelete,
@@ -67,10 +69,39 @@ export function KanbanCard({
     transition,
   };
 
+  const isSubtaskCompleted = React.useCallback(
+    (st: TaskWithDetails) => {
+      if ((st as any).completed) return true;
+      if (st.status_id === "status-5") return true;
+
+      // Check subtask's attached status object if populated
+      if (st.status?.name && /done|completed|finished/i.test(st.status.name)) {
+        return true;
+      }
+
+      // Check against allStatuses list
+      if (allStatuses && allStatuses.length > 0) {
+        const matchingStatus = allStatuses.find((s) => s.id === st.status_id);
+        if (matchingStatus && /done|completed|finished/i.test(matchingStatus.name)) {
+          return true;
+        }
+
+        // Check if matches the designated done status (either named 'done' or the last status)
+        const doneStatus =
+          allStatuses.find((s) => /done|completed|finished/i.test(s.name)) ||
+          allStatuses[allStatuses.length - 1];
+        if (doneStatus && st.status_id === doneStatus.id) {
+          return true;
+        }
+      }
+
+      return false;
+    },
+    [allStatuses]
+  );
+
   const completedSubtasks =
-    task.subtasks?.filter(
-      (st) => st.status_id === "status-5" || (st as any).completed
-    ).length || 0;
+    task.subtasks?.filter(isSubtaskCompleted).length || 0;
   const totalSubtasks = task.subtasks?.length || 0;
 
   const totalAttachments =
@@ -247,10 +278,7 @@ export function KanbanCard({
                 </div>
                 <div className="space-y-1">
                   {task.subtasks.slice(0, 3).map((st) => {
-                    const isStDone =
-                      st.status_id === "status-5" ||
-                      st.status?.name?.toLowerCase().includes("done") ||
-                      (st as any).completed;
+                    const isStDone = isSubtaskCompleted(st);
 
                     return (
                       <button

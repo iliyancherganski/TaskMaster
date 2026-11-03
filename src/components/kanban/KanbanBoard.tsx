@@ -177,6 +177,7 @@ export function KanbanBoard({
               key={status.id}
               status={status}
               tasks={columnTasks}
+              allStatuses={statuses}
               onAddTask={onAddTask}
               onEditTask={onEditTask}
               onDeleteTask={onDeleteTask}
@@ -214,6 +215,7 @@ export function KanbanBoard({
           <KanbanCard
             task={activeTask}
             status={statuses.find((s) => s.id === activeTask.status_id)}
+            allStatuses={statuses}
             isOverlay
           />
         ) : null}

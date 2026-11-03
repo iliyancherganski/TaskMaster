@@ -328,10 +328,23 @@ export default function TaskMasterPage() {
 
     // 2. Optimistically update task lists for instant UI reflection on board
     setTasks((prev) => {
-      const exists = prev.some((t) => t.id === savedTask.id);
-      if (exists) {
-        return prev.map((t) => (t.id === savedTask.id ? { ...t, ...savedTask } : t));
-      }
+      let found = false;
+      const updateList = (list: TaskWithDetails[]): TaskWithDetails[] => {
+        return list.map((t) => {
+          if (t.id === savedTask.id) {
+            found = true;
+            return { ...t, ...savedTask };
+          }
+          if (t.subtasks && t.subtasks.length > 0) {
+            return { ...t, subtasks: updateList(t.subtasks) };
+          }
+          return t;
+        });
+      };
+
+      const updated = updateList(prev);
+      if (found) return updated;
+
       // New top-level task — prepend it
       if (!savedTask.Task_Parent_Id) {
         return [savedTask, ...prev];
@@ -339,10 +352,22 @@ export default function TaskMasterPage() {
       return prev;
     });
     setAllTasks((prev) => {
-      const exists = prev.some((t) => t.id === savedTask.id);
-      if (exists) {
-        return prev.map((t) => (t.id === savedTask.id ? { ...t, ...savedTask } : t));
-      }
+      let found = false;
+      const updateList = (list: TaskWithDetails[]): TaskWithDetails[] => {
+        return list.map((t) => {
+          if (t.id === savedTask.id) {
+            found = true;
+            return { ...t, ...savedTask };
+          }
+          if (t.subtasks && t.subtasks.length > 0) {
+            return { ...t, subtasks: updateList(t.subtasks) };
+          }
+          return t;
+        });
+      };
+
+      const updated = updateList(prev);
+      if (found) return updated;
       return [...prev, savedTask];
     });
 

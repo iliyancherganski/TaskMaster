@@ -21,6 +21,7 @@ import {
 interface KanbanColumnProps {
   status: Status;
   tasks: TaskWithDetails[];
+  allStatuses?: Status[];
   onAddTask: (statusId: string) => void;
   onEditTask: (task: TaskWithDetails) => void;
   onDeleteTask: (taskId: string) => void;
@@ -32,6 +33,7 @@ interface KanbanColumnProps {
 export function KanbanColumn({
   status,
   tasks,
+  allStatuses,
   onAddTask,
   onEditTask,
   onDeleteTask,
@@ -153,6 +155,7 @@ export function KanbanColumn({
               key={task.id}
               task={task}
               status={status}
+              allStatuses={allStatuses}
               onEdit={onEditTask}
               onDelete={onDeleteTask}
               onOpenSubtask={onOpenSubtask}

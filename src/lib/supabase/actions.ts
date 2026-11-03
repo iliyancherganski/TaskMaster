@@ -614,6 +614,24 @@ export async function fetchBoardData(): Promise<{
               }
             } catch (e) {}
           }
+          if (t.subtasks && t.subtasks.length > 1) {
+            try {
+              const cachedSubtasksOrder = localStorage.getItem(`task_subtasks_order_${t.id}`);
+              if (cachedSubtasksOrder) {
+                const orderArr: string[] = JSON.parse(cachedSubtasksOrder);
+                t.subtasks.sort((a, b) => {
+                  const idxA = orderArr.indexOf(a.id);
+                  const idxB = orderArr.indexOf(b.id);
+                  if (idxA === -1 && idxB === -1) return (a.position ?? 0) - (b.position ?? 0);
+                  if (idxA === -1) return 1;
+                  if (idxB === -1) return -1;
+                  return idxA - idxB;
+                });
+              } else {
+                t.subtasks.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+              }
+            } catch (e) {}
+          }
           if (t.subtasks && t.subtasks.length > 0) applyOrder(t.subtasks);
         });
       };
@@ -824,6 +842,33 @@ export async function fetchBoardData(): Promise<{
       if (task.Task_Parent_Id && enrichedTasksMap.has(task.Task_Parent_Id)) {
         const parent = enrichedTasksMap.get(task.Task_Parent_Id)!;
         parent.subtasks.push(task);
+      }
+    });
+
+    // Sort subtasks by cached order or position
+    enrichedTasksMap.forEach((parent) => {
+      if (parent.subtasks && parent.subtasks.length > 1) {
+        let sorted = false;
+        if (typeof window !== "undefined") {
+          try {
+            const cachedSubtasksOrder = localStorage.getItem(`task_subtasks_order_${parent.id}`);
+            if (cachedSubtasksOrder) {
+              const orderArr: string[] = JSON.parse(cachedSubtasksOrder);
+              parent.subtasks.sort((a, b) => {
+                const idxA = orderArr.indexOf(a.id);
+                const idxB = orderArr.indexOf(b.id);
+                if (idxA === -1 && idxB === -1) return (a.position ?? 0) - (b.position ?? 0);
+                if (idxA === -1) return 1;
+                if (idxB === -1) return -1;
+                return idxA - idxB;
+              });
+              sorted = true;
+            }
+          } catch (e) {}
+        }
+        if (!sorted) {
+          parent.subtasks.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+        }
       }
     });
 
@@ -1455,6 +1500,59 @@ export async function deleteSubtask(
   }
 
   await supabase.from("Tasks").delete().eq("id", subtaskId);
+}
+
+export async function reorderSubtasks(
+  parentTaskId: string,
+  orderedSubtaskIds: string[]
+): Promise<void> {
+  // 1. Update in-memory demoTasksState recursively
+  const updateSubtasksOrder = (taskList: TaskWithDetails[]) => {
+    for (const t of taskList) {
+      if (t.id === parentTaskId && t.subtasks) {
+        const map = new Map(t.subtasks.map((st) => [st.id, st]));
+        const reordered: TaskWithDetails[] = [];
+        for (const id of orderedSubtaskIds) {
+          const item = map.get(id);
+          if (item) reordered.push(item);
+        }
+        for (const st of t.subtasks) {
+          if (!orderedSubtaskIds.includes(st.id)) reordered.push(st);
+        }
+        t.subtasks = reordered;
+      }
+      if (t.subtasks && t.subtasks.length > 0) {
+        updateSubtasksOrder(t.subtasks);
+      }
+    }
+  };
+  updateSubtasksOrder(demoTasksState);
+
+  // 2. Persist in localStorage as reliable cache
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(
+        `task_subtasks_order_${parentTaskId}`,
+        JSON.stringify(orderedSubtaskIds)
+      );
+    } catch (e) {}
+  }
+
+  // 3. If Supabase is configured, update position for each subtask in Tasks table
+  if (isSupabaseConfigured) {
+    try {
+      await Promise.all(
+        orderedSubtaskIds.map((id, index) =>
+          supabase
+            .from("Tasks")
+            .update({ position: index, updated_at: new Date().toISOString() })
+            .eq("id", id)
+        )
+      );
+    } catch (err) {
+      console.warn("Could not persist subtask position to DB:", err);
+    }
+  }
 }
 
 // ------------------------------------------------------------

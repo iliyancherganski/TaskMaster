@@ -1645,6 +1645,7 @@ export function TaskModal({
                   users={users}
                   onSubtasksUpdated={(updated) => {
                     task.subtasks = updated;
+                    onTaskSaved({ ...task, subtasks: updated });
                   }}
                   onOpenSubtask={(subtask) => {
                     onNavigateToTask?.(subtask.id);
