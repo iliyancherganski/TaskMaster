@@ -1641,6 +1641,7 @@ export function TaskModal({
                   statuses={statuses}
                   projects={projects}
                   taskTypes={taskTypes}
+                  softwares={softwares}
                   users={users}
                   onSubtasksUpdated={(updated) => {
                     task.subtasks = updated;
