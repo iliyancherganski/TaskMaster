@@ -25,7 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import { RichMarkdownEditor } from "@/components/ui/rich-markdown-editor";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { FileUploader } from "./FileUploader";
+import { TaskAttachmentsExplorer } from "./TaskAttachmentsExplorer";
+import { AddAttachmentModal } from "./AddAttachmentModal";
 import { FolderTreeList } from "./FolderTreeList";
 import { TaskBreadcrumbs } from "./TaskBreadcrumbs";
 import {
@@ -46,8 +47,17 @@ import {
   EducationalMaterial,
   EducationalMaterialWithDetails,
   StudyGroup,
+  ResourceWithFiles,
 } from "@/types/database.types";
-import { createTask, updateTask, deleteTask } from "@/lib/supabase/actions";
+import {
+  createTask,
+  updateTask,
+  deleteTask,
+  updateResourceDescription,
+  deleteAttachment,
+  uploadTaskAttachment,
+  addMediaLinkAttachment,
+} from "@/lib/supabase/actions";
 import { getInitials } from "@/lib/utils";
 import { AttachMaterialModal } from "@/components/education/AttachMaterialModal";
 import { getMaterialTypeMeta } from "@/components/education/MaterialModal";
@@ -172,6 +182,9 @@ export function TaskModal({
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [taskResources, setTaskResources] = useState<ResourceWithFiles[]>(task?.resources || []);
+  const [isAttachmentsExplorerOpen, setIsAttachmentsExplorerOpen] = useState(true);
+  const [isAddAttachmentOpen, setIsAddAttachmentOpen] = useState(false);
   const [statusId, setStatusId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [parentTaskId, setParentTaskId] = useState<string | null>(null);
@@ -217,6 +230,7 @@ export function TaskModal({
     if (task) {
       setName(task.name);
       setDescription(task.description || "");
+      setTaskResources(task.resources || []);
       setStatusId(task.status_id || statuses[0]?.id || "");
       setProjectId(task.Project_id || projects[0]?.id || "");
       setParentTaskId(task.Task_Parent_Id || null);
@@ -242,6 +256,7 @@ export function TaskModal({
     } else {
       setName("");
       setDescription("");
+      setTaskResources([]);
       setStatusId(defaultStatusId || statuses[0]?.id || "");
       setProjectId(defaultProjectId || projects[0]?.id || "");
       setParentTaskId(defaultParentTaskId || null);
@@ -257,6 +272,205 @@ export function TaskModal({
     }
     setError(null);
   }, [task, defaultStatusId, defaultParentTaskId, defaultProjectId, isOpen, statuses, projects]);
+
+  const contentRef = React.useRef<HTMLDivElement>(null);
+
+  // Ensure modal always starts at the top when opened
+  useEffect(() => {
+    if (isOpen) {
+      requestAnimationFrame(() => {
+        if (contentRef.current) {
+          contentRef.current.scrollTop = 0;
+        }
+      });
+    }
+  }, [isOpen, task?.id]);
+
+  const handleUpdateResourceDescription = async (resourceId: string, desc: string | null) => {
+    try {
+      await updateResourceDescription(resourceId, desc);
+      const updated = taskResources.map((r) =>
+        r.id === resourceId ? { ...r, description: desc } : r
+      );
+      setTaskResources(updated);
+      if (task) {
+        task.resources = updated;
+        onTaskSaved({ ...task, resources: updated });
+      }
+    } catch (err) {
+      console.error("Failed to update attachment description:", err);
+    }
+  };
+
+  const handleDeleteResource = async (resource: ResourceWithFiles) => {
+    if (!task?.id) return;
+    try {
+      await deleteAttachment(resource.id, task.id);
+      const updated = taskResources.filter((r) => r.id !== resource.id);
+      setTaskResources(updated);
+      if (task) {
+        task.resources = updated;
+        onTaskSaved({ ...task, resources: updated });
+      }
+    } catch (err) {
+      console.error("Failed to delete attachment:", err);
+    }
+  };
+
+  const handleAttachmentCreated = (
+    newResource: ResourceWithFiles,
+    insertTagImmediately: boolean,
+    size: number = 100
+  ) => {
+    const updated = [newResource, ...taskResources];
+    setTaskResources(updated);
+    if (task) {
+      task.resources = updated;
+      onTaskSaved({ ...task, resources: updated });
+    }
+    if (insertTagImmediately) {
+      const clamped = Math.max(10, Math.min(100, Math.round(size)));
+      const tag =
+        clamped === 100
+          ? `{{attachment:${newResource.id}}}`
+          : `{{attachment:${newResource.id} size=${clamped}%}}`;
+      setDescription((prev) => (prev.trim() ? `${prev}\n\n${tag}\n` : `${tag}\n`));
+    }
+  };
+
+  const handleUpdateAttachmentSizeInDescription = async (resourceId: string, newSize: number) => {
+    const clamped = Math.max(10, Math.min(100, Math.round(newSize)));
+    const tagRegex = new RegExp(
+      `{{\\s*(?:attachment|media|resource):\\s*${resourceId}(?:[\\s|]+(?:size=)?[^}]+)?\\s*}}`,
+      "gi"
+    );
+    const replacementTag =
+      clamped === 100 ? `{{attachment:${resourceId}}}` : `{{attachment:${resourceId} size=${clamped}%}}`;
+
+    let nextDesc = description;
+    if (tagRegex.test(description)) {
+      nextDesc = description.replace(tagRegex, replacementTag);
+    } else {
+      nextDesc = description.trim()
+        ? `${description.trim()}\n\n${replacementTag}\n`
+        : `${replacementTag}\n`;
+    }
+
+    setDescription(nextDesc);
+    if (task) {
+      task.description = nextDesc;
+      await updateTask(task.id, { description: nextDesc });
+      onTaskSaved({ ...task, description: nextDesc });
+    }
+  };
+
+  // Drag-and-drop state for dropping files/images/videos/links on top of the task window
+  const [isDraggingOverModal, setIsDraggingOverModal] = useState(false);
+  const [isUploadingDroppedItem, setIsUploadingDroppedItem] = useState(false);
+  const dragCounterRef = React.useRef(0);
+
+  const handleModalDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDraggingOverModal(true);
+    }
+  };
+
+  const handleModalDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleModalDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDraggingOverModal(false);
+    }
+  };
+
+  const handleModalDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDraggingOverModal(false);
+
+    if (!isExisting || !task?.id) {
+      setError("Please save the task before dropping attachments.");
+      return;
+    }
+
+    const files = Array.from(e.dataTransfer.files || []);
+    const uriList = e.dataTransfer.getData("text/uri-list");
+    const plainText = e.dataTransfer.getData("text/plain");
+
+    const createdResources: ResourceWithFiles[] = [];
+    const newTags: string[] = [];
+
+    setIsUploadingDroppedItem(true);
+    setError(null);
+
+    try {
+      // 1. Handle File objects (images, videos, documents, etc.)
+      if (files.length > 0) {
+        for (const file of files) {
+          const res = await uploadTaskAttachment(task.id, file, file.name);
+          createdResources.push(res);
+          newTags.push(`{{attachment:${res.id}}}`);
+        }
+      }
+      // 2. Handle URLs / Links
+      else if (uriList || plainText) {
+        const rawContent = (uriList || plainText).trim();
+
+        // Check if it's already an attachment tag (e.g. from Explorer or another task)
+        const tagMatches = rawContent.match(/{{\s*(?:attachment|media|resource):\s*([^}\s]+)\s*}}/gi);
+        if (tagMatches && tagMatches.length > 0) {
+          tagMatches.forEach((tag) => newTags.push(tag));
+        } else {
+          // Extract URLs from text
+          const urlMatches = rawContent.match(/https?:\/\/[^\s]+/gi);
+          if (urlMatches && urlMatches.length > 0) {
+            for (const url of urlMatches) {
+              const res = await addMediaLinkAttachment(task.id, url);
+              createdResources.push(res);
+              newTags.push(`{{attachment:${res.id}}}`);
+            }
+          }
+        }
+      }
+
+      if (newTags.length > 0) {
+        // Append tag(s) to the bottom of the description
+        const tagsBlock = newTags.join("\n\n");
+        const nextDescription = description.trim()
+          ? `${description.trim()}\n\n${tagsBlock}\n`
+          : `${tagsBlock}\n`;
+
+        setDescription(nextDescription);
+
+        const updatedResources = [...createdResources, ...taskResources];
+        setTaskResources(updatedResources);
+
+        // Persist to task
+        await updateTask(task.id, { description: nextDescription });
+        const updatedTaskWithDetails: TaskWithDetails = {
+          ...task,
+          description: nextDescription,
+          resources: updatedResources,
+          updated_at: new Date().toISOString(),
+        };
+        Object.assign(task, updatedTaskWithDetails);
+        onTaskSaved(updatedTaskWithDetails);
+      }
+    } catch (err: any) {
+      console.error("Failed to process dropped attachments:", err);
+      setError(err?.message || "Failed to upload dropped attachment");
+    } finally {
+      setIsUploadingDroppedItem(false);
+    }
+  };
 
   useEffect(() => {
     setLocalMaterials(allEducationalMaterials);
@@ -567,6 +781,7 @@ export function TaskModal({
           educational_materials: (localMaterials || []).filter((m) =>
             selectedMaterialIds.includes(m.id)
           ),
+          resources: taskResources,
           updated_at: new Date().toISOString(),
         };
         Object.assign(task, updatedTaskWithDetails);
@@ -622,8 +837,45 @@ export function TaskModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      {/* Responsive Dialog Content with Generous Side Margins */}
-      <DialogContent className="w-[95vw] sm:w-[85vw] md:w-[75vw] max-w-[75vw] max-h-[92vh] overflow-y-auto px-8 sm:px-14 md:px-20 py-6 sm:py-8">
+      {/* Responsive Dialog Content with Generous Side Margins and Full-Modal Drag & Drop */}
+      <DialogContent
+        ref={contentRef}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        className="w-[95vw] sm:w-[85vw] md:w-[75vw] max-w-[75vw] max-h-[92vh] overflow-y-auto px-8 sm:px-14 md:px-20 py-6 sm:py-8"
+        onDragEnter={handleModalDragEnter}
+        onDragOver={handleModalDragOver}
+        onDragLeave={handleModalDragLeave}
+        onDrop={handleModalDrop}
+      >
+        {/* Drag & Drop Visual Dropzone Overlay */}
+        {isDraggingOverModal && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-xs p-8 rounded-lg pointer-events-none transition-all animate-in fade-in-50 duration-150">
+            <div className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed border-primary bg-primary/5 text-center max-w-lg w-full shadow-2xl">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-4 animate-bounce">
+                <Upload className="h-8 w-8" />
+              </div>
+              <h3 className="text-base font-bold text-foreground mb-1">
+                Drop to Add to Task Description
+              </h3>
+              <p className="text-xs text-muted-foreground max-w-sm">
+                Drop files, images, videos, or web links here. They will be automatically attached and embedded at the bottom of the description.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Uploading Dropped Item Indicator */}
+        {isUploadingDroppedItem && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-xs p-8 rounded-lg transition-all">
+            <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-card border border-border shadow-xl">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <span className="text-sm font-medium text-foreground">
+                Processing and embedding attachment...
+              </span>
+            </div>
+          </div>
+        )}
+
         <form
           onSubmit={handleSave}
           onKeyDown={(e) => {
@@ -1583,10 +1835,17 @@ export function TaskModal({
               </div>
 
               {!isEditingSection("description") ? (
-                /* View Mode: Rendered GitHub README Markdown */
+                /* View Mode: Rendered GitHub README Markdown with Inline & Additional Attachments */
                 <div className="py-1">
-                  {description.trim() ? (
-                    <MarkdownRenderer content={description} />
+                  {description.trim() || (taskResources && taskResources.length > 0) ? (
+                    <MarkdownRenderer
+                      content={description}
+                      resources={taskResources}
+                      renderUntaggedAttachments={true}
+                      onUpdateResourceDescription={handleUpdateResourceDescription}
+                      onDeleteResource={handleDeleteResource}
+                      onUpdateAttachmentSize={handleUpdateAttachmentSizeInDescription}
+                    />
                   ) : (
                     <span className="text-muted-foreground/60 italic text-sm">
                       No description provided for this task.
@@ -1594,17 +1853,58 @@ export function TaskModal({
                   )}
                 </div>
               ) : (
-                /* Edit Mode: Word-like Rich Markdown Editor */
-                <div className="space-y-2">
-                  <RichMarkdownEditor
-                    value={description}
-                    onChange={setDescription}
-                    placeholder="Provide context, acceptance criteria, tables, lists, or technical details..."
-                    rows={6}
-                    onSave={() => handleSave()}
-                  />
+                /* Edit Mode: Word-like Rich Markdown Editor + Side-by-Side Attachments Explorer */
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                    <div
+                      className={
+                        isAttachmentsExplorerOpen && isExisting && task
+                          ? "lg:col-span-7 xl:col-span-8"
+                          : "lg:col-span-12"
+                      }
+                    >
+                      <RichMarkdownEditor
+                        value={description}
+                        onChange={setDescription}
+                        placeholder="Provide context, acceptance criteria, tables, lists, or technical details..."
+                        rows={10}
+                        minHeight="260px"
+                        onSave={() => handleSave()}
+                        resources={taskResources}
+                        isExplorerOpen={isAttachmentsExplorerOpen}
+                        onToggleExplorer={
+                          isExisting && task
+                            ? () => setIsAttachmentsExplorerOpen((prev) => !prev)
+                            : undefined
+                        }
+                        onUpdateAttachmentSize={handleUpdateAttachmentSizeInDescription}
+                      />
+                    </div>
+
+                    {isAttachmentsExplorerOpen && isExisting && task && (
+                      <div className="lg:col-span-5 xl:col-span-4">
+                        <TaskAttachmentsExplorer
+                          taskId={task.id}
+                          resources={taskResources}
+                          descriptionText={description}
+                          onInsertTag={(tag) => {
+                            setDescription((prev) =>
+                              prev.trim() ? `${prev}\n\n${tag}\n` : `${tag}\n`
+                            );
+                          }}
+                          onResourcesUpdated={(updated) => {
+                            setTaskResources(updated);
+                            task.resources = updated;
+                            onTaskSaved({ ...task, resources: updated });
+                          }}
+                          onOpenAddModal={() => setIsAddAttachmentOpen(true)}
+                        />
+                      </div>
+                    )}
+                  </div>
+
                   {editingField === "description" && (
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
                       <Button
                         type="button"
                         variant="ghost"
@@ -1649,21 +1949,6 @@ export function TaskModal({
                   }}
                   onOpenSubtask={(subtask) => {
                     onNavigateToTask?.(subtask.id);
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Full-Width Reorderable Images & Attachments Section */}
-            {isExisting && task && (
-              <div className="border-t pt-5">
-                <FileUploader
-                  key={task.id}
-                  taskId={task.id}
-                  initialResources={task.resources || []}
-                  onResourcesUpdated={(updated) => {
-                    task.resources = updated;
-                    onTaskSaved({ ...task, resources: updated });
                   }}
                 />
               </div>
@@ -2126,6 +2411,16 @@ export function TaskModal({
         onSaveAttachments={handleSaveAttachedMaterials}
         onMaterialCreated={handleMaterialCreated}
       />
+
+      {/* Add Task Attachment Modal (Upload File or Add Web Link / YouTube with description) */}
+      {isExisting && task && (
+        <AddAttachmentModal
+          isOpen={isAddAttachmentOpen}
+          onClose={() => setIsAddAttachmentOpen(false)}
+          taskId={task.id}
+          onAttachmentCreated={handleAttachmentCreated}
+        />
+      )}
     </Dialog>
   );
 }

@@ -533,7 +533,7 @@ let demoTasksState: TaskWithDetails[] = [
   {
     id: "task-3",
     name: "Storage file uploader for Task resources",
-    description: "Direct drag-and-drop file upload to Supabase Storage 'task-attachments' bucket.",
+    description: "Direct drag-and-drop file upload to Supabase Storage 'task-attachments' bucket.\n\n{{attachment:res-1}}\n\nReview the architecture specification above, and use the Attachments Explorer to add media or reorder tags.",
     status_id: "status-4",
     Task_Parent_Id: null,
     Project_id: "project-1",
@@ -548,7 +548,7 @@ let demoTasksState: TaskWithDetails[] = [
       {
         id: "res-1",
         name: "architecture-diagram.png",
-        description: null,
+        description: "Full system database architecture diagram and relationship schema",
         Task_Id: "task-3",
         created_at: new Date().toISOString(),
         files: [
@@ -556,6 +556,21 @@ let demoTasksState: TaskWithDetails[] = [
             id: "file-1",
             Url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
             Resource_Id: "res-1",
+            created_at: new Date().toISOString(),
+          },
+        ],
+      },
+      {
+        id: "res-2",
+        name: "Next.js Architecture Walkthrough",
+        description: "Overview video explaining the application structure and components",
+        Task_Id: "task-3",
+        created_at: new Date().toISOString(),
+        files: [
+          {
+            id: "file-2",
+            Url: "https://www.youtube.com/watch?v=wm5gMKuwSYk",
+            Resource_Id: "res-2",
             created_at: new Date().toISOString(),
           },
         ],
@@ -1561,14 +1576,16 @@ export async function reorderSubtasks(
 export async function uploadTaskAttachment(
   taskId: string,
   file: File,
-  resourceName?: string
+  resourceName?: string,
+  description?: string | null
 ): Promise<ResourceWithFiles> {
+  const desc = description?.trim() || null;
   if (!isSupabaseConfigured) {
     const mockUrl = URL.createObjectURL(file);
     const mockResource: ResourceWithFiles = {
       id: "res-" + Date.now(),
       name: resourceName || file.name,
-      description: null,
+      description: desc,
       Task_Id: taskId,
       created_at: new Date().toISOString(),
       files: [
@@ -1616,7 +1633,7 @@ export async function uploadTaskAttachment(
     .from("Resources")
     .insert({
       name: resourceName || file.name,
-      description: null,
+      description: desc,
       Task_Id: taskId,
     })
     .select()
@@ -1639,6 +1656,74 @@ export async function uploadTaskAttachment(
   return {
     ...resource,
     files: [fileRecord],
+  };
+}
+
+export async function addMediaLinkAttachment(
+  taskId: string,
+  url: string,
+  resourceName?: string,
+  description?: string | null
+): Promise<ResourceWithFiles> {
+  const name = resourceName?.trim() || "Web Media";
+  const desc = description?.trim() || null;
+
+  if (!isSupabaseConfigured) {
+    const mockResource: ResourceWithFiles = {
+      id: "res-url-" + Date.now(),
+      name,
+      description: desc,
+      Task_Id: taskId,
+      created_at: new Date().toISOString(),
+      files: [
+        {
+          id: "file-url-" + Date.now(),
+          Url: url,
+          Resource_Id: "res-url-" + Date.now(),
+          created_at: new Date().toISOString(),
+        },
+      ],
+    };
+
+    demoTasksState = demoTasksState.map((task) => {
+      if (task.id === taskId) {
+        return {
+          ...task,
+          resources: [...task.resources, mockResource],
+        };
+      }
+      return task;
+    });
+
+    return mockResource;
+  }
+
+  const { data: resData, error: resErr } = await supabase
+    .from("Resources")
+    .insert({
+      name,
+      description: desc,
+      Task_Id: taskId,
+    })
+    .select()
+    .single();
+
+  if (resErr) throw resErr;
+
+  const { data: fileData, error: fileErr } = await supabase
+    .from("Files")
+    .insert({
+      Url: url,
+      Resource_Id: resData.id,
+    })
+    .select()
+    .single();
+
+  if (fileErr) throw fileErr;
+
+  return {
+    ...resData,
+    files: [fileData],
   };
 }
 

@@ -27,6 +27,7 @@ import {
   Sparkles,
   ChevronDown,
   Copy,
+  Paperclip,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +38,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { MarkdownRenderer } from "./markdown-renderer";
+import { ResourceWithFiles } from "@/types/database.types";
 
 interface RichMarkdownEditorProps {
   value: string;
@@ -46,6 +48,10 @@ interface RichMarkdownEditorProps {
   minHeight?: string;
   className?: string;
   onSave?: () => void;
+  resources?: ResourceWithFiles[];
+  onToggleExplorer?: () => void;
+  isExplorerOpen?: boolean;
+  onUpdateAttachmentSize?: (resourceId: string, size: number) => void;
 }
 
 const TEXT_COLORS = [
@@ -173,6 +179,10 @@ export function RichMarkdownEditor({
   minHeight = "160px",
   className = "",
   onSave,
+  resources,
+  onToggleExplorer,
+  isExplorerOpen,
+  onUpdateAttachmentSize,
 }: RichMarkdownEditorProps) {
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -995,6 +1005,28 @@ export function RichMarkdownEditor({
             </Popover>
           </div>
 
+          {/* Toggle Attachments Explorer Button */}
+          {onToggleExplorer && (
+            <button
+              type="button"
+              onClick={onToggleExplorer}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border ${
+                isExplorerOpen
+                  ? "bg-primary text-primary-foreground border-primary shadow-2xs"
+                  : "bg-background/80 text-muted-foreground border-border/70 hover:text-foreground hover:bg-muted"
+              }`}
+              title={isExplorerOpen ? "Hide Attachments Explorer" : "Show Attachments Explorer"}
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Attachments</span>
+              {resources && resources.length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-background/25 font-bold">
+                  {resources.length}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Right Mode Switch: Write vs Preview */}
           <div className="flex items-center gap-1 bg-background/80 p-0.5 rounded-lg border border-border/60">
             <button
@@ -1038,6 +1070,40 @@ export function RichMarkdownEditor({
             }}
             onInput={adjustHeight}
             onKeyDown={handleKeyDown}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+            }}
+            onDrop={(e) => {
+              const textData = e.dataTransfer.getData("text/plain");
+              if (textData && textData.includes("{{attachment:")) {
+                e.preventDefault();
+                const textarea = textareaRef.current;
+                if (!textarea) return;
+                let insertPos = textarea.selectionStart;
+                if (document.caretPositionFromPoint) {
+                  const range = document.caretPositionFromPoint(e.clientX, e.clientY);
+                  if (range && range.offsetNode === textarea) {
+                    insertPos = range.offset;
+                  }
+                } else if ((document as any).caretRangeFromPoint) {
+                  const range = (document as any).caretRangeFromPoint(e.clientX, e.clientY);
+                  if (range) {
+                    insertPos = range.startOffset;
+                  }
+                }
+                const text = textarea.value;
+                const formatted = `\n\n${textData.trim()}\n\n`;
+                const nextVal = text.substring(0, insertPos) + formatted + text.substring(insertPos);
+                onChange(nextVal);
+                requestAnimationFrame(() => {
+                  textarea.focus();
+                  const newPos = insertPos + formatted.length;
+                  textarea.setSelectionRange(newPos, newPos);
+                  adjustHeight();
+                });
+              }
+            }}
             style={{ minHeight }}
             className="border-0 shadow-none focus-visible:ring-0 text-sm leading-relaxed resize-none font-mono overflow-hidden transition-[height] duration-75"
           />
@@ -1060,7 +1126,28 @@ export function RichMarkdownEditor({
           style={{ minHeight }}
         >
           {value.trim() ? (
-            <MarkdownRenderer content={value} />
+            <MarkdownRenderer
+              content={value}
+              resources={resources}
+              onUpdateAttachmentSize={(resId, newSize) => {
+                const clamped = Math.max(10, Math.min(100, Math.round(newSize)));
+                if (onUpdateAttachmentSize) {
+                  onUpdateAttachmentSize(resId, clamped);
+                  return;
+                }
+                const tagRegex = new RegExp(
+                  `{{\\s*(?:attachment|media|resource):\\s*${resId}(?:[\\s|]+(?:size=)?[^}]+)?\\s*}}`,
+                  "gi"
+                );
+                const replacementTag =
+                  clamped === 100 ? `{{attachment:${resId}}}` : `{{attachment:${resId} size=${clamped}%}}`;
+                if (tagRegex.test(value)) {
+                  onChange(value.replace(tagRegex, replacementTag));
+                } else {
+                  onChange(value.trim() ? `${value.trim()}\n\n${replacementTag}\n` : `${replacementTag}\n`);
+                }
+              }}
+            />
           ) : (
             <p className="text-xs text-muted-foreground italic">
               Nothing to preview. Switch to the Write tab to type content.
