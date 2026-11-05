@@ -331,8 +331,9 @@ function SortableSubtaskCard({
         {coverImageUrl && (
           <div
             onClick={() => onOpenSubtask?.(st)}
-            className="relative h-28 w-full bg-slate-900/5 dark:bg-slate-900/40 overflow-hidden border-b border-border/50 cursor-pointer"
+            className="relative h-44 w-full bg-slate-900/5 dark:bg-slate-900/40 overflow-hidden border-b border-border/50 cursor-pointer"
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={coverImageUrl}
               alt={firstImageResource?.name || st.name}
@@ -341,7 +342,7 @@ function SortableSubtaskCard({
           </div>
         )}
 
-        <div className="p-3 space-y-2.5">
+        <div className="p-2.5 space-y-2">
           {/* Header Row: Task Types Pills & Actions/Drag handle */}
           <div className="flex items-start justify-between gap-1.5">
             <div className="flex flex-wrap items-center gap-1 min-w-0 flex-1">
@@ -486,12 +487,12 @@ function SortableSubtaskCard({
           {/* Nested Subtasks Badge (if any) */}
           {totalSubtasks > 0 && (
             <div
-              className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground"
+              className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground"
               title={`${completedSubtasks} of ${totalSubtasks} nested subtasks completed`}
             >
               <CheckSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="font-medium text-[11px]">
-                {completedSubtasks}/{totalSubtasks} subtasks
+              <span className="font-medium text-[10px] shrink-0">
+                {completedSubtasks}/{totalSubtasks}
               </span>
               <div className="h-1.5 flex-1 bg-muted rounded-full overflow-hidden border border-border/40">
                 <div
@@ -507,7 +508,7 @@ function SortableSubtaskCard({
       </div>
 
       {/* Card Footer: Assignees & Deadline */}
-      <div className="flex items-center justify-between gap-1.5 px-3 py-2 border-t border-border/50 bg-muted/20 text-[10px]">
+      <div className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 border-t border-border/50 bg-muted/20 text-[10px]">
         {/* Assignees */}
         <div className="flex items-center -space-x-1.5 min-w-0">
           {st.assignees && st.assignees.length > 0 ? (
@@ -539,7 +540,7 @@ function SortableSubtaskCard({
             }
           >
             <Calendar className={`h-3 w-3 ${isOverdue ? "text-red-500 stroke-[2.5]" : ""}`} />
-            <span className="truncate max-w-[110px]">{formatDeadlineDate(st.due_date)}</span>
+            <span className="truncate max-w-[85px] sm:max-w-[100px]">{formatDeadlineDate(st.due_date)}</span>
             {deadlineRemaining && (
               <span className={`text-[9px] px-1 py-0.2 rounded border font-semibold ${deadlineRemaining.badgeStyle}`}>
                 {deadlineRemaining.shortLabel}
@@ -913,7 +914,7 @@ export function FolderTreeList({
             </span>
           </div>
 
-          <div className="max-h-[520px] overflow-y-auto pr-1">
+          <div className="max-h-[580px] overflow-y-auto pr-1">
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -923,7 +924,7 @@ export function FolderTreeList({
                 items={subtasks.map((s) => s.id)}
                 strategy={rectSortingStrategy}
               >
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-3">
                   {subtasks.map((st) => (
                     <SortableSubtaskCard
                       key={st.id}
