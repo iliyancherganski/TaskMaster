@@ -11,6 +11,8 @@ import {
   Sparkles,
   FolderKanban,
   GraduationCap,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,6 +42,8 @@ interface NavbarProps {
   selectedProjectId?: string;
   onProjectChange?: (projectId: string) => void;
   onNewProject?: () => void;
+  onEditProject?: (project: Project) => void;
+  onDeleteProject?: (project: Project) => void;
   currentSection?: "board" | "education";
   onSectionChange?: (section: "board" | "education") => void;
   educationalMaterialsCount?: number;
@@ -53,10 +57,14 @@ export function Navbar({
   selectedProjectId = "all",
   onProjectChange,
   onNewProject,
+  onEditProject,
+  onDeleteProject,
   currentSection = "board",
   onSectionChange,
   educationalMaterialsCount,
 }: NavbarProps) {
+  const currentProject =
+    selectedProjectId !== "all" ? projects.find((p) => p.id === selectedProjectId) : null;
   const [isDbModalOpen, setIsDbModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -100,10 +108,11 @@ export function Navbar({
               </div>
             </div>
 
-            {/* Project Selector Filter & New Project Button in Top Menu Bar */}
+            {/* Project Selector Filter, Details & Actions in Top Menu Bar */}
             {onProjectChange && (
-              <div className="hidden sm:flex items-center gap-1.5 pl-3 border-l border-border/70">
-                <div className="w-44 md:w-56">
+              <div className="flex items-center gap-2 pl-3 border-l border-border/70 min-w-0">
+                {/* Project Selector Dropdown */}
+                <div className="w-36 sm:w-44 md:w-48 shrink-0">
                   <Select value={selectedProjectId} onValueChange={onProjectChange}>
                     <SelectTrigger className="h-9 text-xs rounded-xl bg-muted/40 hover:bg-muted/70 border-border/80 font-medium">
                       <div className="flex items-center gap-2 truncate">
@@ -130,17 +139,66 @@ export function Navbar({
                   </Select>
                 </div>
 
+                {/* Selected Project Details (Title & Description) & Edit/Delete Buttons */}
+                {currentProject && (
+                  <div className="flex items-center gap-2 min-w-0 pl-2 border-l border-border/60">
+                    <div className="flex flex-col justify-center min-w-0 max-w-[130px] sm:max-w-[180px] lg:max-w-[280px]">
+                      <span className="font-bold text-xs text-foreground truncate leading-tight">
+                        {currentProject.name}
+                      </span>
+                      {currentProject.description && (
+                        <span
+                          className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5 cursor-help"
+                          title={currentProject.description}
+                        >
+                          {currentProject.description}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {onEditProject && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs gap-1 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer shadow-2xs"
+                          onClick={() => onEditProject(currentProject)}
+                          title="Edit project name & description"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          <span className="hidden xl:inline text-[11px]">Edit</span>
+                        </Button>
+                      )}
+                      {onDeleteProject && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs gap-1 rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 cursor-pointer shadow-2xs"
+                          onClick={() => onDeleteProject(currentProject)}
+                          title="Delete project"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span className="hidden xl:inline text-[11px]">Delete</span>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Create New Project Button */}
                 {onNewProject && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 px-2.5 text-xs gap-1 rounded-xl border-dashed hover:border-primary/50 text-muted-foreground hover:text-foreground shrink-0"
+                    className="h-9 px-2.5 text-xs gap-1 rounded-xl border-dashed hover:border-primary/50 text-muted-foreground hover:text-foreground shrink-0 hidden md:inline-flex"
                     onClick={onNewProject}
                     title="Create New Project"
                   >
                     <Plus className="h-3.5 w-3.5 text-primary" />
-                    <span className="hidden md:inline">New Project</span>
+                    <span className="hidden xl:inline">New Project</span>
                   </Button>
                 )}
               </div>

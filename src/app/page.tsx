@@ -7,6 +7,7 @@ import { KanbanFilterBar } from "@/components/filters/KanbanFilterBar";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { FolderExplorerView } from "@/components/explorer/FolderExplorerView";
 import { EducationHubView } from "@/components/education/EducationHubView";
+import { IdeaBoardView } from "@/components/idea-board/IdeaBoardView";
 import { TaskModal } from "@/components/tasks/TaskModal";
 import { ColumnModal } from "@/components/kanban/ColumnModal";
 import { ProjectModal } from "@/components/projects/ProjectModal";
@@ -48,7 +49,7 @@ import {
   updateEducationalMaterial,
   deleteEducationalMaterial,
 } from "@/lib/supabase/actions";
-import { Loader2, Pencil, Trash2, FolderKanban } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function TaskMasterPage() {
   const [statuses, setStatuses] = useState<Status[]>([]);
@@ -71,8 +72,8 @@ export default function TaskMasterPage() {
   const [educationalConnections, setEducationalConnections] = useState<StudyGroupConnection[]>([]);
   const [educationalTags, setEducationalTags] = useState<string[]>([]);
 
-  // View Mode: Kanban vs Folder Structure
-  const [viewMode, setViewMode] = useState<"kanban" | "folder">("kanban");
+  // View Mode: Kanban vs Folder Structure vs Idea Board
+  const [viewMode, setViewMode] = useState<"kanban" | "folder" | "idea-board">("kanban");
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,6 +98,9 @@ export default function TaskMasterPage() {
   const [deleteProjectStep, setDeleteProjectStep] = useState<1 | 2 | null>(null);
   const [isDeletingProject, setIsDeletingProject] = useState(false);
 
+  // Idea board pin trigger from filter bar
+  const [pinNoteTrigger, setPinNoteTrigger] = useState(0);
+
   const STORAGE_KEY_PROJECT = "taskmaster_selected_project";
 
   const handleSelectProject = (projectId: string) => {
@@ -105,7 +109,44 @@ export default function TaskMasterPage() {
       try {
         localStorage.setItem(STORAGE_KEY_PROJECT, projectId);
       } catch (e) {}
+      const url = new URL(window.location.href);
+      if (projectId && projectId !== "all") {
+        url.searchParams.set("project", projectId);
+      } else {
+        url.searchParams.delete("project");
+      }
+      window.history.replaceState({}, "", url.pathname + url.search);
     }
+  };
+
+  const handleViewModeChange = (mode: "kanban" | "folder" | "idea-board") => {
+    setViewMode(mode);
+    if (mode === "idea-board") {
+      setSearchQuery("");
+    }
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (mode === "idea-board") {
+        url.searchParams.set("view", "ideas");
+      } else if (mode === "folder") {
+        url.searchParams.set("view", "folder");
+      } else {
+        url.searchParams.delete("view");
+        url.searchParams.delete("tab");
+      }
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
+  };
+
+  const handleCopyBoardLink = () => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", "ideas");
+    if (selectedProjectId && selectedProjectId !== "all") {
+      url.searchParams.set("project", selectedProjectId);
+    }
+    navigator.clipboard.writeText(url.toString());
+    alert("Direct link to this Idea Board copied to clipboard!");
   };
 
   // Initial load
@@ -153,6 +194,25 @@ export default function TaskMasterPage() {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Restore view mode and project from direct URL link parameters (?view=ideas&project=...)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get("view") || params.get("tab");
+    if (viewParam === "ideas" || viewParam === "idea-board") {
+      setViewMode("idea-board");
+    } else if (viewParam === "folder") {
+      setViewMode("folder");
+    } else if (viewParam === "kanban") {
+      setViewMode("kanban");
+    }
+
+    const projParam = params.get("project");
+    if (projParam) {
+      setSelectedProjectId(projParam);
+    }
   }, []);
 
   // Filter tasks based on search and selected filters
@@ -620,9 +680,6 @@ export default function TaskMasterPage() {
     await loadData();
   };
 
-  const currentProject =
-    selectedProjectId !== "all" ? projects.find((p) => p.id === selectedProjectId) : null;
-
   if (isLoading) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
@@ -647,7 +704,13 @@ export default function TaskMasterPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background selection:bg-primary/20">
+    <div
+      className={`flex flex-col selection:bg-primary/20 transition-colors duration-200 ${
+        viewMode === "idea-board" && currentSection !== "education"
+          ? "bg-[#eedbb8] text-amber-950 h-screen overflow-hidden"
+          : "min-h-screen bg-background text-foreground"
+      }`}
+    >
       {/* Top Navbar */}
       <Navbar
         isConfigured={isConfigured}
@@ -657,13 +720,21 @@ export default function TaskMasterPage() {
         selectedProjectId={selectedProjectId}
         onProjectChange={handleSelectProject}
         onNewProject={handleOpenCreateProject}
+        onEditProject={handleOpenEditProject}
+        onDeleteProject={handleStartDeleteProject}
         currentSection={currentSection}
         onSectionChange={setCurrentSection}
         educationalMaterialsCount={educationalMaterials.length}
       />
 
       {/* Main Workspace */}
-      <main className="flex-1 flex flex-col px-4 sm:px-8 py-4 max-w-[1700px] w-full mx-auto">
+      <main
+        className={`w-full mx-auto transition-all ${
+          viewMode === "idea-board" && currentSection !== "education"
+            ? "px-0 py-0 max-w-none flex-1 min-h-0 flex flex-col overflow-hidden h-[calc(100vh-64px)]"
+            : "flex-1 px-4 sm:px-8 py-4 max-w-[1700px] flex flex-col"
+        }`}
+      >
         {currentSection === "education" ? (
           <EducationHubView
             groups={educationalGroups}
@@ -684,48 +755,6 @@ export default function TaskMasterPage() {
           />
         ) : (
           <>
-            {/* Project Header Banner when a specific project is selected */}
-            {currentProject && (
-              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/70 bg-card/60 backdrop-blur-sm px-4 py-2 shadow-xs">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <FolderKanban className="h-4 w-4" />
-                  </div>
-                  <div className="flex flex-col justify-center">
-                    <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground leading-snug">
-                      {currentProject.name}
-                    </h1>
-                    {currentProject.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 max-w-xl leading-tight">
-                        {currentProject.description}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2.5 gap-1.5 text-xs rounded-lg cursor-pointer"
-                    onClick={() => handleOpenEditProject(currentProject)}
-                  >
-                    <Pencil className="h-3 w-3 text-muted-foreground" />
-                    Edit project name
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2.5 gap-1.5 text-xs rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 cursor-pointer"
-                    onClick={() => handleStartDeleteProject(currentProject)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Delete project
-                  </Button>
-                </div>
-              </div>
-            )}
-
             {/* Filters and View Switcher Bar */}
             <KanbanFilterBar
               searchQuery={searchQuery}
@@ -743,11 +772,19 @@ export default function TaskMasterPage() {
               completedTasks={completedCount}
               onResetFilters={handleResetFilters}
               viewMode={viewMode}
-              onViewModeChange={setViewMode}
+              onViewModeChange={handleViewModeChange}
+              onPinNote={() => setPinNoteTrigger((prev) => prev + 1)}
+              onCopyBoardLink={handleCopyBoardLink}
             />
 
-            {/* View Content: Kanban vs Folder Structure */}
-            <div className="flex-1 mt-4">
+            {/* View Content: Kanban vs Folder Structure vs Idea Board */}
+            <div
+              className={`w-full ${
+                viewMode === "idea-board"
+                  ? "flex-1 min-h-0 flex flex-col overflow-hidden h-[calc(100vh-116px)]"
+                  : "flex-1 mt-4"
+              }`}
+            >
               {viewMode === "kanban" ? (
                 <KanbanBoard
                   statuses={statuses}
@@ -761,7 +798,7 @@ export default function TaskMasterPage() {
                   onAddColumn={handleOpenAddColumn}
                   onOpenSubtask={(st) => handleNavigateToTask(st.id)}
                 />
-              ) : (
+              ) : viewMode === "folder" ? (
                 <FolderExplorerView
                   tasks={filteredTasks}
                   projects={projects}
@@ -773,6 +810,15 @@ export default function TaskMasterPage() {
                     handleOpenCreateModal(statusId, parentTaskId)
                   }
                   onDeleteTask={handleDeleteTask}
+                />
+              ) : (
+                <IdeaBoardView
+                  projectId={selectedProjectId}
+                  projects={projects}
+                  availableTasks={allTasks}
+                  searchQuery={searchQuery}
+                  onOpenTask={(taskId) => handleNavigateToTask(taskId)}
+                  pinNoteTrigger={pinNoteTrigger}
                 />
               )}
             </div>

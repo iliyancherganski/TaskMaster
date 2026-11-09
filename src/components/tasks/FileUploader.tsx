@@ -434,7 +434,7 @@ interface VideoCardProps {
   isPlaying: boolean;
   onTogglePlay: (id: string) => void;
   onDelete: (resource: ResourceWithFiles) => void;
-  onUpdateDescription: (id: string, description: string | null) => Promise<void>;
+  onUpdateDescription: (id: string, description: string | null) => Promise<void>;/*  */
 }
 
 function VideoCard({
