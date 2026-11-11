@@ -588,6 +588,192 @@ export type Database = {
           }
         ];
       };
+      IdeaBoards: {
+        Row: {
+          id: string;
+          project_id: string | null;
+          name: string | null;
+          parent_board_id: string | null;
+          icon: string | null;
+          theme: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id?: string | null;
+          name?: string | null;
+          parent_board_id?: string | null;
+          icon?: string | null;
+          theme?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          project_id?: string | null;
+          name?: string | null;
+          parent_board_id?: string | null;
+          icon?: string | null;
+          theme?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "IdeaBoards_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: true;
+            referencedRelation: "Projects";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      IdeaNotes: {
+        Row: {
+          id: string;
+          project_id: string | null;
+          board_id: string | null;
+          sub_board_id: string | null;
+          icon: string | null;
+          type: string;
+          title: string;
+          content: string | null;
+          file_url: string | null;
+          file_name: string | null;
+          file_size: number | null;
+          task_id: string | null;
+          color: string;
+          pin_color: string;
+          x: number;
+          y: number;
+          width: number;
+          rotation: number;
+          z_index: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id?: string | null;
+          board_id?: string | null;
+          sub_board_id?: string | null;
+          icon?: string | null;
+          type?: string;
+          title?: string;
+          content?: string | null;
+          file_url?: string | null;
+          file_name?: string | null;
+          file_size?: number | null;
+          task_id?: string | null;
+          color?: string;
+          pin_color?: string;
+          x?: number;
+          y?: number;
+          width?: number;
+          rotation?: number;
+          z_index?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          project_id?: string | null;
+          board_id?: string | null;
+          sub_board_id?: string | null;
+          icon?: string | null;
+          type?: string;
+          title?: string;
+          content?: string | null;
+          file_url?: string | null;
+          file_name?: string | null;
+          file_size?: number | null;
+          task_id?: string | null;
+          color?: string;
+          pin_color?: string;
+          x?: number;
+          y?: number;
+          width?: number;
+          rotation?: number;
+          z_index?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "IdeaNotes_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "Projects";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "IdeaNotes_task_id_fkey";
+            columns: ["task_id"];
+            isOneToOne: false;
+            referencedRelation: "Tasks";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      IdeaStrings: {
+        Row: {
+          id: string;
+          project_id: string | null;
+          board_id: string | null;
+          from_note_id: string;
+          to_note_id: string;
+          color: string;
+          label: string | null;
+          tension: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id?: string | null;
+          board_id?: string | null;
+          from_note_id: string;
+          to_note_id: string;
+          color?: string;
+          label?: string | null;
+          tension?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          project_id?: string | null;
+          board_id?: string | null;
+          from_note_id?: string;
+          to_note_id?: string;
+          color?: string;
+          label?: string | null;
+          tension?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "IdeaStrings_from_note_id_fkey";
+            columns: ["from_note_id"];
+            isOneToOne: false;
+            referencedRelation: "IdeaNotes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "IdeaStrings_to_note_id_fkey";
+            columns: ["to_note_id"];
+            isOneToOne: false;
+            referencedRelation: "IdeaNotes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "IdeaStrings_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "Projects";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -703,4 +889,17 @@ export interface TaskFormData {
   educational_material_ids?: string[];
   due_date?: string | null;
 }
+
+// Idea Board Database Aliases
+export type IdeaBoardRow = Database["public"]["Tables"]["IdeaBoards"]["Row"];
+export type IdeaBoardInsert = Database["public"]["Tables"]["IdeaBoards"]["Insert"];
+export type IdeaBoardUpdate = Database["public"]["Tables"]["IdeaBoards"]["Update"];
+
+export type IdeaNoteRow = Database["public"]["Tables"]["IdeaNotes"]["Row"];
+export type IdeaNoteInsert = Database["public"]["Tables"]["IdeaNotes"]["Insert"];
+export type IdeaNoteUpdate = Database["public"]["Tables"]["IdeaNotes"]["Update"];
+
+export type IdeaStringRow = Database["public"]["Tables"]["IdeaStrings"]["Row"];
+export type IdeaStringInsert = Database["public"]["Tables"]["IdeaStrings"]["Insert"];
+export type IdeaStringUpdate = Database["public"]["Tables"]["IdeaStrings"]["Update"];
 

@@ -18,6 +18,7 @@ interface YarnStringProps {
   startPoint: Point;
   endPoint: Point;
   isSelected?: boolean;
+  isNoteHovered?: boolean;
   onSelect?: () => void;
   onDelete?: () => void;
   onUpdate?: (updates: Partial<IdeaStringConnection>) => void;
@@ -121,6 +122,7 @@ export function YarnString({
   startPoint,
   endPoint,
   isSelected = false,
+  isNoteHovered = false,
   onSelect,
   onDelete,
   onUpdate,
@@ -145,102 +147,108 @@ export function YarnString({
 
   return (
     <g
-      className="group cursor-pointer select-none"
+      className="group select-none"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={(e) => {
-        e.stopPropagation();
-        onSelect?.();
+        if (!isNoteHovered) {
+          e.stopPropagation();
+          onSelect?.();
+        }
       }}
     >
-      {/* 1. Underlying Soft Drop Shadow onto Corkboard */}
-      <path
-        d={path}
-        fill="none"
-        stroke="rgba(0,0,0,0.32)"
-        strokeWidth={4.5}
-        strokeLinecap="round"
-        transform="translate(2, 4)"
-        className="pointer-events-none filter blur-[1.5px]"
-      />
+      {/* Masked string paths & shadows: section over hovered note becomes semi-transparent */}
+      <g mask="url(#hovered-note-yarn-mask)">
+        {/* 1. Underlying Soft Drop Shadow onto Corkboard */}
+        <path
+          d={path}
+          fill="none"
+          stroke="rgba(0,0,0,0.32)"
+          strokeWidth={4.5}
+          strokeLinecap="round"
+          transform="translate(2, 4)"
+          className="pointer-events-none filter blur-[1.5px]"
+        />
 
-      {/* 2. Invisible Wide Hitbox for Easy Clicking */}
-      <path
-        d={path}
-        fill="none"
-        stroke="transparent"
-        strokeWidth={18}
-        strokeLinecap="round"
-      />
+        {/* 2. Invisible Wide Hitbox for Easy Clicking */}
+        <path
+          d={path}
+          fill="none"
+          stroke="transparent"
+          strokeWidth={18}
+          strokeLinecap="round"
+          className={isNoteHovered ? "pointer-events-none" : "pointer-events-auto cursor-pointer"}
+        />
 
-      {/* 3. Selection / Hover Glow Aura */}
-      {(isSelected || isHovered) && (
+        {/* 3. Selection / Hover Glow Aura */}
+        {(isSelected || isHovered) && (
+          <path
+            d={path}
+            fill="none"
+            stroke={colors.light}
+            strokeWidth={7}
+            strokeLinecap="round"
+            strokeOpacity={0.45}
+            className="pointer-events-none animate-pulse"
+          />
+        )}
+
+        {/* 4. Main Textured Yarn Core */}
+        <path
+          d={path}
+          fill="none"
+          stroke={colors.main}
+          strokeWidth={isSelected ? 3.5 : 2.8}
+          strokeLinecap="round"
+          className="pointer-events-none transition-all duration-150"
+        />
+
+        {/* 5. Twisted Multi-ply Fiber Highlight (gives real thread/yarn texture) */}
         <path
           d={path}
           fill="none"
           stroke={colors.light}
-          strokeWidth={7}
+          strokeWidth={1.1}
+          strokeDasharray="4 3"
           strokeLinecap="round"
-          strokeOpacity={0.45}
-          className="pointer-events-none animate-pulse"
+          strokeOpacity={0.65}
+          className="pointer-events-none"
         />
-      )}
 
-      {/* 4. Main Textured Yarn Core */}
-      <path
-        d={path}
-        fill="none"
-        stroke={colors.main}
-        strokeWidth={isSelected ? 3.5 : 2.8}
-        strokeLinecap="round"
-        className="transition-all duration-150"
-      />
+        {/* 6. Dark Fiber Twist Accent */}
+        <path
+          d={path}
+          fill="none"
+          stroke={colors.dark}
+          strokeWidth={0.8}
+          strokeDasharray="2 5"
+          strokeLinecap="round"
+          strokeOpacity={0.5}
+          className="pointer-events-none"
+        />
 
-      {/* 5. Twisted Multi-ply Fiber Highlight (gives real thread/yarn texture) */}
-      <path
-        d={path}
-        fill="none"
-        stroke={colors.light}
-        strokeWidth={1.1}
-        strokeDasharray="4 3"
-        strokeLinecap="round"
-        strokeOpacity={0.65}
-        className="pointer-events-none"
-      />
+        {/* 7. Tiny Thread Knots / Anchor Rings around Start & End Pins */}
+        <circle
+          cx={startPoint.x}
+          cy={startPoint.y}
+          r={3.5}
+          fill="none"
+          stroke={colors.main}
+          strokeWidth={1.8}
+          className="pointer-events-none"
+        />
+        <circle
+          cx={endPoint.x}
+          cy={endPoint.y}
+          r={3.5}
+          fill="none"
+          stroke={colors.main}
+          strokeWidth={1.8}
+          className="pointer-events-none"
+        />
+      </g>
 
-      {/* 6. Dark Fiber Twist Accent */}
-      <path
-        d={path}
-        fill="none"
-        stroke={colors.dark}
-        strokeWidth={0.8}
-        strokeDasharray="2 5"
-        strokeLinecap="round"
-        strokeOpacity={0.5}
-        className="pointer-events-none"
-      />
-
-      {/* 7. Tiny Thread Knots / Anchor Rings around Start & End Pins */}
-      <circle
-        cx={startPoint.x}
-        cy={startPoint.y}
-        r={3.5}
-        fill="none"
-        stroke={colors.main}
-        strokeWidth={1.8}
-        className="pointer-events-none"
-      />
-      <circle
-        cx={endPoint.x}
-        cy={endPoint.y}
-        r={3.5}
-        fill="none"
-        stroke={colors.main}
-        strokeWidth={1.8}
-        className="pointer-events-none"
-      />
-
-      {/* 8. Interactive String Midpoint Label / Action Badge */}
+      {/* 8. Interactive String Midpoint Label / Action Badge (unmasked) */}
       <foreignObject
         x={labelX - 110}
         y={labelY - 18}
@@ -253,7 +261,7 @@ export function YarnString({
           {isEditingLabel ? (
             <form
               onSubmit={handleSaveLabel}
-              className="flex items-center gap-1 bg-background/95 backdrop-blur-md px-2 py-1 rounded-lg border shadow-lg z-30"
+              className="flex items-center gap-1 bg-background/95 backdrop-blur-md px-2 py-1 rounded-lg border shadow-lg z-30 pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <input
@@ -269,18 +277,22 @@ export function YarnString({
               />
               <button
                 type="submit"
-                className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary text-primary-foreground"
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary text-primary-foreground cursor-pointer"
               >
                 Save
               </button>
             </form>
           ) : connection.label ? (
             <div
-              className={`group/badge flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold tracking-wide shadow-md transition-all ${
+              className={`group/badge flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold tracking-wide shadow-md transition-all pointer-events-auto cursor-pointer ${
                 isSelected || isHovered
                   ? "bg-background/95 text-foreground border-primary scale-105"
                   : "bg-background/80 text-foreground/80 border-border/60 backdrop-blur-xs"
               }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect?.();
+              }}
             >
               <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: colors.main }} />
               <span className="truncate max-w-[120px]">{connection.label}</span>
@@ -290,7 +302,7 @@ export function YarnString({
           {/* Floating Actions on Hover / Selection */}
           {(isHovered || isSelected) && !isEditingLabel && (
             <div
-              className="mt-1 flex items-center gap-1 p-1 bg-background/95 backdrop-blur-md rounded-lg border border-border/80 shadow-xl text-xs z-30 animate-in fade-in zoom-in-95 duration-100"
+              className="mt-1 flex items-center gap-1 p-1 bg-background/95 backdrop-blur-md rounded-lg border border-border/80 shadow-xl text-xs z-30 animate-in fade-in zoom-in-95 duration-100 pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Change Tension */}
@@ -305,7 +317,7 @@ export function YarnString({
                       : "normal";
                   onUpdate?.({ tension: nextTension });
                 }}
-                className="px-1.5 py-0.5 rounded hover:bg-muted text-[10px] font-mono text-muted-foreground hover:text-foreground capitalize flex items-center gap-0.5"
+                className="px-1.5 py-0.5 rounded hover:bg-muted text-[10px] font-mono text-muted-foreground hover:text-foreground capitalize flex items-center gap-0.5 cursor-pointer"
                 title={`Tension: ${connection.tension} (click to cycle loose/normal/tight)`}
               >
                 <Zap className="h-2.5 w-2.5 text-amber-500" />
@@ -316,7 +328,7 @@ export function YarnString({
               <button
                 type="button"
                 onClick={() => setIsEditingLabel(true)}
-                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
                 title="Edit label"
               >
                 <Tag className="h-3 w-3" />
@@ -327,7 +339,7 @@ export function YarnString({
                 <button
                   type="button"
                   onClick={() => setShowColorPicker(!showColorPicker)}
-                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground flex items-center"
+                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground flex items-center cursor-pointer"
                   title="Change yarn color"
                 >
                   <Palette className="h-3 w-3" />
@@ -342,7 +354,7 @@ export function YarnString({
                           onUpdate?.({ color: c });
                           setShowColorPicker(false);
                         }}
-                        className={`h-4 w-4 rounded-full border-2 transition-transform hover:scale-125 ${
+                        className={`h-4 w-4 rounded-full border-2 transition-transform hover:scale-125 cursor-pointer ${
                           connection.color === c ? "border-foreground ring-1 ring-primary" : "border-white/60"
                         }`}
                         style={{ backgroundColor: YARN_COLORS[c].main }}
@@ -358,8 +370,8 @@ export function YarnString({
                 <button
                   type="button"
                   onClick={onDelete}
-                  className="p-1 rounded hover:bg-destructive/10 text-destructive hover:text-destructive flex items-center gap-0.5"
-                  title="Cut string (Delete connection)"
+                  className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive cursor-pointer"
+                  title="Cut string (Delete)"
                 >
                   <Scissors className="h-3 w-3" />
                 </button>
@@ -386,7 +398,7 @@ export function LiveYarnStringPreview({
   const { path } = calculateStringCurve(startPoint, currentPoint, "normal");
 
   return (
-    <g className="pointer-events-none select-none">
+    <g className="pointer-events-none select-none" mask="url(#hovered-note-yarn-mask)">
       {/* Drop shadow */}
       <path
         d={path}

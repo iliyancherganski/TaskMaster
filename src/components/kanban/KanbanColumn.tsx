@@ -22,24 +22,30 @@ interface KanbanColumnProps {
   status: Status;
   tasks: TaskWithDetails[];
   allStatuses?: Status[];
+  linkedTaskIds?: Set<string>;
   onAddTask: (statusId: string) => void;
   onEditTask: (task: TaskWithDetails) => void;
   onDeleteTask: (taskId: string) => void;
   onEditColumn?: (status: Status) => void;
   onDeleteColumn?: (statusId: string) => void;
   onOpenSubtask?: (subtask: TaskWithDetails) => void;
+  onNavigateToIdeaBoard?: (taskId: string) => void;
+  onLinkToIdeaBoard?: (task: TaskWithDetails) => void;
 }
 
 export function KanbanColumn({
   status,
   tasks,
   allStatuses,
+  linkedTaskIds,
   onAddTask,
   onEditTask,
   onDeleteTask,
   onEditColumn,
   onDeleteColumn,
   onOpenSubtask,
+  onNavigateToIdeaBoard,
+  onLinkToIdeaBoard,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: status.id,
@@ -156,9 +162,12 @@ export function KanbanColumn({
               task={task}
               status={status}
               allStatuses={allStatuses}
+              isLinkedToIdeaBoard={linkedTaskIds?.has(task.id)}
               onEdit={onEditTask}
               onDelete={onDeleteTask}
               onOpenSubtask={onOpenSubtask}
+              onNavigateToIdeaBoard={onNavigateToIdeaBoard}
+              onLinkToIdeaBoard={onLinkToIdeaBoard}
             />
           ))}
         </SortableContext>

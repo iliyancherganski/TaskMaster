@@ -21,6 +21,19 @@ import {
   Globe,
   MoreVertical,
   CheckSquare,
+  Folder,
+  Layers,
+  Layout,
+  Palette,
+  Sparkles,
+  Lightbulb,
+  Coffee,
+  Box,
+  Target,
+  Compass,
+  Bookmark,
+  Flame,
+  ArrowRight,
 } from "lucide-react";
 import {
   extractYouTubeId,
@@ -30,13 +43,39 @@ import {
 } from "@/lib/media-utils";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
+const SUBBOARD_ICON_MAP: Record<string, any> = {
+  folder: Folder,
+  layers: Layers,
+  layout: Layout,
+  palette: Palette,
+  sparkles: Sparkles,
+  lightbulb: Lightbulb,
+  coffee: Coffee,
+  box: Box,
+  target: Target,
+  compass: Compass,
+  bookmark: Bookmark,
+  flame: Flame,
+};
+
+export interface HoveredCardInfo {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+}
+
 interface IdeaNoteCardProps {
   note: IdeaNote;
   isDragging?: boolean;
   isConnectingSource?: boolean;
   isConnectTarget?: boolean;
   isSelected?: boolean;
+  isTargetHighlight?: boolean;
   onSelect?: () => void;
+  onHoverCard?: (info: HoveredCardInfo | null) => void;
   onStartDrag?: (noteId: string, clientX: number, clientY: number) => void;
   onPinMouseDown?: (noteId: string, e: React.MouseEvent) => void;
   onPinMouseUp?: (noteId: string, e: React.MouseEvent) => void;
@@ -48,6 +87,8 @@ interface IdeaNoteCardProps {
   onDelete?: (id: string) => void;
   onDuplicate?: (note: IdeaNote) => void;
   onOpenTask?: (taskId: string) => void;
+  onOpenSubBoard?: (boardId: string, boardName: string) => void;
+  onDeleteBoard?: (boardId: string, boardName: string) => void;
 }
 
 const PAPER_STYLES: Record<
@@ -116,7 +157,9 @@ export function IdeaNoteCard({
   isConnectingSource = false,
   isConnectTarget = false,
   isSelected = false,
+  isTargetHighlight = false,
   onSelect,
+  onHoverCard,
   onStartDrag,
   onPinMouseDown,
   onPinMouseUp,
@@ -128,6 +171,8 @@ export function IdeaNoteCard({
   onDelete,
   onDuplicate,
   onOpenTask,
+  onOpenSubBoard,
+  onDeleteBoard,
 }: IdeaNoteCardProps) {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -152,6 +197,13 @@ export function IdeaNoteCard({
 
   // Mouse Dragging implementation (delegated to board container)
   const handleMouseDown = (e: React.MouseEvent) => {
+    // If currently a connect target, clicking on the note card connects string!
+    if (isConnectTarget) {
+      e.stopPropagation();
+      onPinClick?.(note.id, e);
+      return;
+    }
+
     // Only drag on left click and when not holding Ctrl/Meta (Ctrl+click is reserved for panning)
     if (e.button !== 0 || e.ctrlKey || e.metaKey) return;
     const target = e.target as HTMLElement;
@@ -173,6 +225,10 @@ export function IdeaNoteCard({
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (note.type === "board") {
+      onOpenSubBoard?.(note.sub_board_id || note.id, note.title);
+      return;
+    }
     onEdit?.(note);
   };
 
@@ -181,23 +237,60 @@ export function IdeaNoteCard({
       ref={cardRef}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
-      className={`group absolute select-none transition-shadow duration-150 ${
+      onMouseEnter={() => {
+        if (!isConnectingSource) {
+          onPinMouseEnter?.(note.id);
+        }
+        const el = cardRef.current;
+        const width = el ? el.offsetWidth : note.type === "board" ? 220 : note.width;
+        const height = el ? el.offsetHeight : note.type === "board" ? 220 : 250;
+        onHoverCard?.({
+          id: note.id,
+          x: note.x,
+          y: note.y,
+          width,
+          height,
+          rotation: note.rotation || 0,
+        });
+      }}
+      onMouseLeave={() => {
+        onPinMouseLeave?.(note.id);
+        onHoverCard?.(null);
+      }}
+      onClick={(e) => {
+        if (isConnectTarget) {
+          e.stopPropagation();
+          onPinClick?.(note.id, e);
+        }
+      }}
+      className={`group absolute select-none transition-all duration-200 ${
         isDragging ? "cursor-grabbing z-50 shadow-2xl scale-[1.02]" : "cursor-grab"
       } ${
-        isSelected
+        isTargetHighlight
+          ? "ring-4 ring-amber-400 ring-offset-4 ring-offset-[#eedbb8] shadow-[0_0_35px_rgba(245,158,11,0.7)] scale-[1.03] animate-pulse"
+          : isSelected
           ? "ring-4 ring-amber-600 ring-offset-2 ring-offset-[#eedbb8] shadow-2xl scale-[1.01]"
           : ""
       }`}
       style={{
         left: `${note.x}px`,
         top: `${note.y}px`,
-        width: `${note.width}px`,
+        width: `${note.type === "board" ? 220 : note.width}px`,
+        height: note.type === "board" ? "220px" : undefined,
         zIndex: isDragging ? 9999 : note.z_index,
         transform: `rotate(${isDragging ? 0 : note.rotation}deg)`,
       }}
     >
+      {/* Target Flash / Highlight Badge when jumping from Kanban */}
+      {isTargetHighlight && (
+        <div className="absolute -top-3.5 left-2 z-50 bg-amber-500 text-black text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 border border-white animate-bounce pointer-events-none">
+          <span>💡</span>
+          <span>Linked Task Note</span>
+        </div>
+      )}
+
       {/* Selected Indicator Pill */}
-      {isSelected && (
+      {isSelected && !isTargetHighlight && (
         <div className="absolute -top-2.5 right-2 z-40 bg-amber-600 text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full shadow-md flex items-center gap-1 pointer-events-none">
           <span>✓</span>
         </div>
@@ -231,67 +324,142 @@ export function IdeaNoteCard({
 
       {/* Main Physical Note Body */}
       <div
-        className={`relative rounded-xl border ${style.border} ${style.bg} ${style.text} overflow-hidden shadow-[0_10px_25px_-5px_rgba(0,0,0,0.3),0_4px_10px_rgba(0,0,0,0.15)] transition-all`}
+        className={`relative rounded-xl border ${style.border} ${style.bg} ${style.text} overflow-hidden shadow-[0_10px_25px_-5px_rgba(0,0,0,0.3),0_4px_10px_rgba(0,0,0,0.15)] transition-all ${
+          note.type === "board" ? "h-full flex flex-col justify-between" : ""
+        }`}
       >
         {/* Subtle Paper Grain / Fiber Overlay */}
         <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:16px_16px]" />
 
-        {/* Note Header / Drag Grip */}
-        <div className="pt-5 px-3.5 pb-2 flex items-center justify-between gap-2 border-b border-black/5 dark:border-white/5">
-          <div className="min-w-0 flex-1">
-            <h4 className="font-bold text-xs sm:text-sm tracking-tight truncate leading-tight">
-              {note.title || "Untitled Note"}
-            </h4>
-          </div>
+        {/* Square Sub-Idea Board Box (Requirement 4) */}
+        {note.type === "board" ? (
+          <div className="flex-1 flex flex-col items-center justify-between p-3.5 pt-5 text-center select-none">
+            {/* Top Toolbar */}
+            <div className="w-full flex items-center justify-between mb-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-950 dark:text-amber-200">
+                Sub-Board
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStartConnect?.(note.id, e);
+                  }}
+                  className={`p-1 rounded-md text-xs font-semibold transition-all ${
+                    isConnectingSource
+                      ? "bg-red-600 text-white shadow-xs"
+                      : "hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Connect string to another note or board"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                </button>
+                {(onDeleteBoard || onDelete) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onDeleteBoard) {
+                        onDeleteBoard(note.sub_board_id || note.id, note.title);
+                      } else if (onDelete) {
+                        onDelete(note.id);
+                      }
+                    }}
+                    className="p-1 rounded-md hover:bg-red-500/15 text-muted-foreground hover:text-destructive transition-colors"
+                    title="Delete sub-board"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
 
-          {/* Quick Floating Toolbar for Note */}
-          <div className="flex items-center gap-0.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
-            {/* Connect String Button */}
+            {/* Big Icon in the top-middle of the box */}
+            <div className="my-auto flex flex-col items-center justify-center gap-2 py-1">
+              <div className="h-14 w-14 rounded-2xl bg-amber-500/15 dark:bg-white/15 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform text-amber-900 dark:text-amber-100">
+                {React.createElement(
+                  SUBBOARD_ICON_MAP[note.icon || "folder"] || Layers,
+                  { className: "h-8 w-8" }
+                )}
+              </div>
+              {/* Title (the board name) below it */}
+              <h4 className="font-extrabold text-sm text-foreground line-clamp-2 px-1 leading-snug">
+                {note.title || "Untitled Board"}
+              </h4>
+            </div>
+
+            {/* Bottom Open Button */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onStartConnect?.(note.id, e);
+                onOpenSubBoard?.(note.sub_board_id || note.id, note.title);
               }}
-              className={`p-1 rounded-md text-xs font-semibold transition-all ${
-                isConnectingSource
-                  ? "bg-red-600 text-white shadow-xs"
-                  : "hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground"
-              }`}
-              title="Connect string to another note"
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
             >
-              <Link2 className="h-3.5 w-3.5" />
+              <span>Open Board</span>
+              <ArrowRight className="h-3.5 w-3.5" />
             </button>
-
-            {/* Edit Note */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit?.(note);
-              }}
-              className="p-1 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
-              title="Edit note"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-
-            {/* Delete Note */}
-            {onDelete && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(note.id);
-                }}
-                className="p-1 rounded-md hover:bg-red-500/10 text-muted-foreground hover:text-destructive transition-colors"
-                title="Delete note"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            )}
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Note Header / Drag Grip */}
+            <div className="pt-5 px-3.5 pb-2 flex items-center justify-between gap-2 border-b border-black/5 dark:border-white/5">
+              <div className="min-w-0 flex-1">
+                <h4 className="font-bold text-xs sm:text-sm tracking-tight truncate leading-tight">
+                  {note.title || "Untitled Note"}
+                </h4>
+              </div>
+
+              {/* Quick Floating Toolbar for Note */}
+              <div className="flex items-center gap-0.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                {/* Connect String Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStartConnect?.(note.id, e);
+                  }}
+                  className={`p-1 rounded-md text-xs font-semibold transition-all ${
+                    isConnectingSource
+                      ? "bg-red-600 text-white shadow-xs"
+                      : "hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Connect string to another note"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                </button>
+
+                {/* Edit Note */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit?.(note);
+                  }}
+                  className="p-1 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
+                  title="Edit note"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+
+                {/* Delete Note */}
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(note.id);
+                    }}
+                    className="p-1 rounded-md hover:bg-red-500/10 text-muted-foreground hover:text-destructive transition-colors"
+                    title="Delete note"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
 
         {/* Note Body Content according to Type */}
         <div className="p-3.5 space-y-2.5 text-xs">
@@ -422,6 +590,8 @@ export function IdeaNoteCard({
             </div>
           )}
         </div>
+        </>
+      )}
       </div>
 
       {/* Lightbox Modal for Image Notes */}

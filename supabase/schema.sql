@@ -378,5 +378,113 @@ CREATE POLICY "Team access EducationalMaterials" ON public."EducationalMaterials
 DROP POLICY IF EXISTS "Team access Tasks_EducationalMaterials" ON public."Tasks_EducationalMaterials";
 CREATE POLICY "Team access Tasks_EducationalMaterials" ON public."Tasks_EducationalMaterials" FOR ALL USING (true) WITH CHECK (true);
 
+-- ============================================================
+-- 9. Idea Boards & Physical String Connections
+-- ============================================================
+
+-- 9.1 IdeaBoards (Stores theme, nested boards & preferences per project or global)
+CREATE TABLE IF NOT EXISTS public."IdeaBoards" (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID REFERENCES public."Projects"(id) ON DELETE CASCADE,
+    name TEXT NOT NULL DEFAULT 'Main Board',
+    parent_board_id UUID REFERENCES public."IdeaBoards"(id) ON DELETE CASCADE,
+    icon TEXT DEFAULT 'folder',
+    theme TEXT NOT NULL DEFAULT 'cork',
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public."IdeaBoards" ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT 'Main Board';
+ALTER TABLE public."IdeaBoards" ADD COLUMN IF NOT EXISTS parent_board_id UUID REFERENCES public."IdeaBoards"(id) ON DELETE CASCADE;
+ALTER TABLE public."IdeaBoards" ADD COLUMN IF NOT EXISTS icon TEXT DEFAULT 'folder';
+
+DROP INDEX IF EXISTS public.idx_ideaboards_project_id;
+CREATE INDEX IF NOT EXISTS idx_ideaboards_project_id ON public."IdeaBoards"(project_id);
+CREATE INDEX IF NOT EXISTS idx_ideaboards_parent ON public."IdeaBoards"(parent_board_id);
+
+-- 9.2 IdeaNotes table
+CREATE TABLE IF NOT EXISTS public."IdeaNotes" (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    project_id UUID REFERENCES public."Projects"(id) ON DELETE CASCADE,
+    board_id UUID REFERENCES public."IdeaBoards"(id) ON DELETE CASCADE,
+    type TEXT NOT NULL DEFAULT 'text',
+    title TEXT NOT NULL DEFAULT 'New Idea',
+    content TEXT DEFAULT '',
+    file_url TEXT,
+    file_name TEXT,
+    file_size BIGINT,
+    task_id UUID REFERENCES public."Tasks"(id) ON DELETE SET NULL,
+    color TEXT NOT NULL DEFAULT 'yellow',
+    pin_color TEXT NOT NULL DEFAULT 'red',
+    x DOUBLE PRECISION NOT NULL DEFAULT 100,
+    y DOUBLE PRECISION NOT NULL DEFAULT 100,
+    width DOUBLE PRECISION NOT NULL DEFAULT 300,
+    rotation DOUBLE PRECISION NOT NULL DEFAULT 0,
+    z_index INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public."IdeaNotes" ADD COLUMN IF NOT EXISTS board_id UUID REFERENCES public."IdeaBoards"(id) ON DELETE CASCADE;
+
+-- 9.3 IdeaStrings table (Physical string connections between notes)
+CREATE TABLE IF NOT EXISTS public."IdeaStrings" (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    project_id UUID REFERENCES public."Projects"(id) ON DELETE CASCADE,
+    board_id UUID REFERENCES public."IdeaBoards"(id) ON DELETE CASCADE,
+    from_note_id TEXT NOT NULL REFERENCES public."IdeaNotes"(id) ON DELETE CASCADE,
+    to_note_id TEXT NOT NULL REFERENCES public."IdeaNotes"(id) ON DELETE CASCADE,
+    color TEXT NOT NULL DEFAULT 'red',
+    label TEXT,
+    tension TEXT NOT NULL DEFAULT 'normal',
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT unique_idea_string UNIQUE (from_note_id, to_note_id)
+);
+
+ALTER TABLE public."IdeaStrings" ADD COLUMN IF NOT EXISTS board_id UUID REFERENCES public."IdeaBoards"(id) ON DELETE CASCADE;
+
+-- 9.4 Indexes
+CREATE INDEX IF NOT EXISTS idx_ideaboards_project ON public."IdeaBoards"(project_id);
+CREATE INDEX IF NOT EXISTS idx_ideanotes_project ON public."IdeaNotes"(project_id);
+CREATE INDEX IF NOT EXISTS idx_ideanotes_task ON public."IdeaNotes"(task_id);
+CREATE INDEX IF NOT EXISTS idx_ideastrings_project ON public."IdeaStrings"(project_id);
+CREATE INDEX IF NOT EXISTS idx_ideastrings_from ON public."IdeaStrings"(from_note_id);
+CREATE INDEX IF NOT EXISTS idx_ideastrings_to ON public."IdeaStrings"(to_note_id);
+
+-- 9.5 Row Level Security (RLS)
+ALTER TABLE public."IdeaBoards" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."IdeaNotes" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."IdeaStrings" ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Team access IdeaBoards" ON public."IdeaBoards";
+CREATE POLICY "Team access IdeaBoards" ON public."IdeaBoards" FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Team access IdeaNotes" ON public."IdeaNotes";
+CREATE POLICY "Team access IdeaNotes" ON public."IdeaNotes" FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Team access IdeaStrings" ON public."IdeaStrings";
+CREATE POLICY "Team access IdeaStrings" ON public."IdeaStrings" FOR ALL USING (true) WITH CHECK (true);
+
+-- 9.6 Setup Storage Bucket for Idea Board Attachments
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('idea-attachments', 'idea-attachments', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+DROP POLICY IF EXISTS "Public idea attachments access" ON storage.objects;
+CREATE POLICY "Public idea attachments access" ON storage.objects
+    FOR SELECT USING (bucket_id = 'idea-attachments');
+
+DROP POLICY IF EXISTS "Public idea attachments upload" ON storage.objects;
+CREATE POLICY "Public idea attachments upload" ON storage.objects
+    FOR INSERT WITH CHECK (bucket_id = 'idea-attachments');
+
+DROP POLICY IF EXISTS "Public idea attachments update" ON storage.objects;
+CREATE POLICY "Public idea attachments update" ON storage.objects
+    FOR UPDATE USING (bucket_id = 'idea-attachments');
+
+DROP POLICY IF EXISTS "Public idea attachments delete" ON storage.objects;
+CREATE POLICY "Public idea attachments delete" ON storage.objects
+    FOR DELETE USING (bucket_id = 'idea-attachments');
+
 
 

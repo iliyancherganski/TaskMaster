@@ -216,6 +216,18 @@ export function TaskModal({
   const [isDeletingSoftware, setIsDeletingSoftware] = useState(false);
 
   const prevTaskIdRef = React.useRef<string | null | undefined>(undefined);
+  const taskNameInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Auto-focus on task title input when creating a new task (Requirement 3)
+  useEffect(() => {
+    if (isOpen && !task) {
+      const timer = setTimeout(() => {
+        taskNameInputRef.current?.focus();
+        taskNameInputRef.current?.select();
+      }, 70);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, task]);
 
   // Sync form when modal opens or active task changes
   useEffect(() => {
@@ -840,7 +852,9 @@ export function TaskModal({
       {/* Responsive Dialog Content with Generous Side Margins and Full-Modal Drag & Drop */}
       <DialogContent
         ref={contentRef}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => {
+          if (task) e.preventDefault();
+        }}
         className="w-[95vw] sm:w-[85vw] md:w-[75vw] max-w-[75vw] max-h-[92vh] overflow-y-auto px-8 sm:px-14 md:px-20 py-6 sm:py-8"
         onDragEnter={handleModalDragEnter}
         onDragOver={handleModalDragOver}
@@ -931,6 +945,7 @@ export function TaskModal({
               ) : (
                 <div className="flex items-center gap-2 flex-1 min-w-[200px]">
                   <Input
+                    ref={taskNameInputRef}
                     placeholder="Task name *"
                     value={name}
                     onChange={(e) => setName(e.target.value)}

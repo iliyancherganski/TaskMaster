@@ -13,6 +13,8 @@ import {
   Lightbulb,
   Plus,
   Share2,
+  CheckSquare,
+  Layers,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -43,6 +45,8 @@ interface KanbanFilterBarProps {
   viewMode?: "kanban" | "folder" | "idea-board";
   onViewModeChange?: (mode: "kanban" | "folder" | "idea-board") => void;
   onPinNote?: () => void;
+  onLinkTask?: () => void;
+  onNewBoard?: () => void;
   onCopyBoardLink?: () => void;
 }
 
@@ -64,6 +68,8 @@ export function KanbanFilterBar({
   viewMode = "kanban",
   onViewModeChange,
   onPinNote,
+  onLinkTask,
+  onNewBoard,
   onCopyBoardLink,
 }: KanbanFilterBarProps) {
   const isIdeaBoard = viewMode === "idea-board";
@@ -136,7 +142,7 @@ export function KanbanFilterBar({
             </div>
           )}
 
-          {/* When in Idea Board view: ONLY show the + Pin Note button and Copy Link */}
+          {/* When in Idea Board view: show + Pin Note, + Link Task and Copy Link */}
           {isIdeaBoard ? (
             <div className="flex items-center gap-2">
               {onPinNote && (
@@ -144,9 +150,32 @@ export function KanbanFilterBar({
                   type="button"
                   onClick={onPinNote}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+                  title="Create a new custom idea note or attachment"
                 >
                   <Plus className="h-4 w-4" />
                   <span>+ Pin Note</span>
+                </button>
+              )}
+              {onLinkTask && (
+                <button
+                  type="button"
+                  onClick={onLinkTask}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 active:scale-95 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+                  title="Choose an existing task to link to the idea board"
+                >
+                  <CheckSquare className="h-3.5 w-3.5" />
+                  <span>+ Link Task</span>
+                </button>
+              )}
+              {onNewBoard && (
+                <button
+                  type="button"
+                  onClick={onNewBoard}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-900 active:scale-95 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+                  title="Create a new nested sub-idea board"
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>+ New Board</span>
                 </button>
               )}
               {onCopyBoardLink && (

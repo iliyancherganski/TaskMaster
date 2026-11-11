@@ -2536,3 +2536,21 @@ export async function updateTaskMaterialLinks(
     }
   }
 }
+
+// ------------------------------------------------------------
+// Idea Board & Physical Strings DB Actions
+// ------------------------------------------------------------
+export {
+  loadIdeaBoard,
+  fetchIdeaBoardFromDb,
+  saveIdeaBoardToDb,
+  saveIdeaBoard,
+  resetIdeaBoard,
+  uploadIdeaAttachment,
+  getLinkedTaskIdsFromCache,
+  fetchLinkedTaskIdsFromDb,
+  fetchSubboardsFromDb,
+  getSubboardsFromCache,
+  createSubboard,
+  deleteSubboard,
+} from "@/lib/idea-board-storage";

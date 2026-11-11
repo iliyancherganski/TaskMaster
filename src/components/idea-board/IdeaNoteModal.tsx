@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -29,7 +29,9 @@ import {
 } from "lucide-react";
 import { TaskWithDetails } from "@/types/database.types";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
+import { RichMarkdownEditor } from "@/components/ui/rich-markdown-editor";
 import { PushPin } from "./PushPin";
+import { uploadIdeaAttachment } from "@/lib/idea-board-storage";
 
 interface IdeaNoteModalProps {
   isOpen: boolean;
@@ -77,7 +79,7 @@ export function IdeaNoteModal({
   const [taskId, setTaskId] = useState<string>("");
   const [color, setColor] = useState<IdeaPaperColor>("yellow");
   const [pinColor, setPinColor] = useState<IdeaPinColor>("red");
-  const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (editingNote) {
@@ -99,7 +101,14 @@ export function IdeaNoteModal({
       setColor("yellow");
       setPinColor("red");
     }
-    setActiveTab("write");
+
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        titleInputRef.current?.focus();
+        titleInputRef.current?.select();
+      }, 60);
+      return () => clearTimeout(timer);
+    }
   }, [editingNote, isOpen]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,9 +118,14 @@ export function IdeaNoteModal({
     setFileName(file.name);
     if (!title) setTitle(file.name.replace(/\.[^/.]+$/, ""));
 
-    // Create object URL for client preview
-    const url = URL.createObjectURL(file);
-    setFileUrl(url);
+    // Create object URL for client preview immediately
+    const previewUrl = URL.createObjectURL(file);
+    setFileUrl(previewUrl);
+
+    // Upload to Supabase Storage (or persistent storage) in background
+    uploadIdeaAttachment(file).then((persistentUrl) => {
+      setFileUrl(persistentUrl);
+    });
 
     if (file.type.startsWith("image/")) {
       setType("image");
@@ -269,63 +283,28 @@ export function IdeaNoteModal({
               Title / Header
             </label>
             <Input
+              ref={titleInputRef}
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Give your idea or clue a title..."
               className="text-sm font-semibold"
+              autoFocus
             />
           </div>
 
           {/* Formatted Content Editor */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-muted-foreground">
-                Formatted Description / Notes
-              </label>
-              <div className="flex items-center gap-1 bg-muted p-0.5 rounded-md text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("write")}
-                  className={`px-2 py-0.5 rounded ${
-                    activeTab === "write"
-                      ? "bg-background text-foreground font-bold shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Write
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("preview")}
-                  className={`px-2 py-0.5 rounded ${
-                    activeTab === "preview"
-                      ? "bg-background text-foreground font-bold shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Preview
-                </button>
-              </div>
-            </div>
-
-            {activeTab === "write" ? (
-              <Textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Write your thoughts (Markdown supported: **bold**, *italic*, lists, `code`, quotes)..."
-                rows={5}
-                className="text-xs font-mono"
-              />
-            ) : (
-              <div className="p-3 rounded-lg border border-border/60 bg-muted/20 min-h-[120px] max-h-[220px] overflow-y-auto text-xs">
-                {content.trim() ? (
-                  <MarkdownRenderer content={content} renderUntaggedAttachments={false} />
-                ) : (
-                  <span className="text-muted-foreground/60 italic">Preview is empty</span>
-                )}
-              </div>
-            )}
+            <label className="text-xs font-semibold text-muted-foreground block mb-1">
+              Formatted Description / Notes
+            </label>
+            <RichMarkdownEditor
+              value={content}
+              onChange={setContent}
+              placeholder="Write your thoughts (Markdown supported: **bold**, *italic*, lists, tables, code, quotes)..."
+              rows={5}
+              minHeight="140px"
+            />
           </div>
 
           {/* Paper Color & Pin Color */}

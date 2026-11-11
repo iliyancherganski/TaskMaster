@@ -15,6 +15,7 @@ import {
   ExternalLink,
   FolderKanban,
   BookOpen,
+  Lightbulb,
 } from "lucide-react";
 import { TaskWithDetails, Status } from "@/types/database.types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,9 +35,12 @@ interface KanbanCardProps {
   status?: Status;
   allStatuses?: Status[];
   isOverlay?: boolean;
+  isLinkedToIdeaBoard?: boolean;
   onEdit?: (task: TaskWithDetails) => void;
   onDelete?: (taskId: string) => void;
   onOpenSubtask?: (subtask: TaskWithDetails) => void;
+  onNavigateToIdeaBoard?: (taskId: string) => void;
+  onLinkToIdeaBoard?: (task: TaskWithDetails) => void;
 }
 
 export function KanbanCard({
@@ -44,9 +48,12 @@ export function KanbanCard({
   status,
   allStatuses,
   isOverlay = false,
+  isLinkedToIdeaBoard = false,
   onEdit,
   onDelete,
   onOpenSubtask,
+  onNavigateToIdeaBoard,
+  onLinkToIdeaBoard,
 }: KanbanCardProps) {
   const {
     attributes,
@@ -161,6 +168,20 @@ export function KanbanCard({
             alt={firstImageResource?.name || "Task image"}
             className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
+          {/* Linked to Idea Board Lightbulb Badge on Cover */}
+          {isLinkedToIdeaBoard && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigateToIdeaBoard?.(task.id);
+              }}
+              className="absolute top-2 left-2 z-20 flex items-center justify-center h-6 w-6 rounded-full bg-amber-400/95 hover:bg-amber-300 text-amber-950 shadow-md ring-1 ring-amber-500/80 hover:scale-115 active:scale-95 transition-all cursor-pointer"
+              title="Linked to Idea Board • Click to open in Idea Board"
+            >
+              <Lightbulb className="h-3.5 w-3.5 fill-amber-950 text-amber-950" />
+            </button>
+          )}
         </div>
       )}
 
@@ -168,6 +189,20 @@ export function KanbanCard({
         {/* Header: TaskTypes pills & Quick Dropdown */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+            {/* Linked to Idea Board indicator if no cover image */}
+            {!coverImageUrl && isLinkedToIdeaBoard && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNavigateToIdeaBoard?.(task.id);
+                }}
+                className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-400 hover:bg-amber-300 text-amber-950 shadow-xs ring-1 ring-amber-500/60 hover:scale-115 active:scale-95 transition-all cursor-pointer shrink-0"
+                title="Linked to Idea Board • Click to open in Idea Board"
+              >
+                <Lightbulb className="h-3 w-3 fill-amber-950 text-amber-950" />
+              </button>
+            )}
             {task.task_types && task.task_types.length > 0 ? (
               task.task_types.map((type) => (
                 <span
@@ -221,12 +256,27 @@ export function KanbanCard({
                   <MoreVertical className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-36">
+              <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuItem
                   onClick={() => onEdit?.(task)}
                   className="cursor-pointer gap-2"
                 >
                   <Pencil className="h-3.5 w-3.5" /> Edit Details
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isLinkedToIdeaBoard) {
+                      onNavigateToIdeaBoard?.(task.id);
+                    } else {
+                      onLinkToIdeaBoard?.(task);
+                    }
+                  }}
+                  className="cursor-pointer gap-2 text-amber-700 dark:text-amber-400 focus:text-amber-700"
+                >
+                  <Lightbulb className="h-3.5 w-3.5" />
+                  <span>{isLinkedToIdeaBoard ? "View on Idea Board" : "Link to Idea Board"}</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

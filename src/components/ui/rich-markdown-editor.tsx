@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import {
   Bold,
   Italic,
@@ -28,6 +28,8 @@ import {
   ChevronDown,
   Copy,
   Paperclip,
+  Undo2,
+  Redo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -248,6 +250,84 @@ export function RichMarkdownEditor({
     }
   }, [value, activeTab]);
 
+  // History Stack for Text & Formatting Undo / Redo inside the Editor
+  const historyRef = useRef<{ text: string; selectionStart: number; selectionEnd: number }[]>([
+    { text: value || "", selectionStart: 0, selectionEnd: 0 },
+  ]);
+  const historyIndexRef = useRef<number>(0);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const isUndoRedoApplyingRef = useRef<boolean>(false);
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Keep initial history entry in sync on mount
+  useEffect(() => {
+    if (historyRef.current.length === 1 && historyRef.current[0].text === "" && value) {
+      historyRef.current[0].text = value;
+    }
+  }, [value]);
+
+  const pushHistory = useCallback((newText: string, selStart = 0, selEnd = 0) => {
+    const current = historyRef.current[historyIndexRef.current];
+    if (current && current.text === newText) return;
+
+    const nextHistory = historyRef.current.slice(0, historyIndexRef.current + 1);
+    nextHistory.push({ text: newText, selectionStart: selStart, selectionEnd: selEnd });
+    if (nextHistory.length > 60) {
+      nextHistory.shift();
+    }
+    historyRef.current = nextHistory;
+    historyIndexRef.current = nextHistory.length - 1;
+    setCanUndo(true);
+    setCanRedo(false);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+    if (historyIndexRef.current <= 0) return;
+    const nextIndex = historyIndexRef.current - 1;
+    historyIndexRef.current = nextIndex;
+    const target = historyRef.current[nextIndex];
+    if (target !== undefined) {
+      isUndoRedoApplyingRef.current = true;
+      onChange(target.text);
+      setCanUndo(nextIndex > 0);
+      setCanRedo(true);
+      requestAnimationFrame(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+          textarea.focus();
+          textarea.setSelectionRange(target.selectionStart, target.selectionEnd);
+          adjustHeight();
+        }
+      });
+    }
+  }, [onChange]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    const nextIndex = historyIndexRef.current + 1;
+    historyIndexRef.current = nextIndex;
+    const target = historyRef.current[nextIndex];
+    if (target !== undefined) {
+      isUndoRedoApplyingRef.current = true;
+      onChange(target.text);
+      setCanUndo(true);
+      setCanRedo(nextIndex < historyRef.current.length - 1);
+      requestAnimationFrame(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+          textarea.focus();
+          textarea.setSelectionRange(target.selectionStart, target.selectionEnd);
+          adjustHeight();
+        }
+      });
+    }
+  }, [onChange]);
+
   // Open Link popover and record current selection
   const handleOpenLinkPopover = () => {
     const textarea = textareaRef.current;
@@ -290,17 +370,20 @@ export function RichMarkdownEditor({
       const { start, end } = linkSelection;
       const text = textarea.value;
       const nextVal = text.substring(0, start) + snippet + text.substring(end);
+      const newPos = start + snippet.length;
+      pushHistory(nextVal, newPos, newPos);
       onChange(nextVal);
 
       setIsLinkPopoverOpen(false);
       requestAnimationFrame(() => {
         textarea.focus();
-        const newPos = start + snippet.length;
         textarea.setSelectionRange(newPos, newPos);
         adjustHeight();
       });
     } else {
-      onChange((value ? value + " " : "") + snippet);
+      const nextVal = (value ? value + " " : "") + snippet;
+      pushHistory(nextVal, nextVal.length, nextVal.length);
+      onChange(nextVal);
       setIsLinkPopoverOpen(false);
     }
   };
@@ -318,14 +401,14 @@ export function RichMarkdownEditor({
     const nextVal =
       textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
 
+    const selStart = start + before.length;
+    const selEnd = start + before.length + selectedText.length;
+    pushHistory(nextVal, selStart, selEnd);
     onChange(nextVal);
 
     requestAnimationFrame(() => {
       textarea.focus();
-      textarea.setSelectionRange(
-        start + before.length,
-        start + before.length + selectedText.length
-      );
+      textarea.setSelectionRange(selStart, selEnd);
       adjustHeight();
     });
   };
@@ -348,11 +431,14 @@ export function RichMarkdownEditor({
 
       const newLine = currentLine.trim() ? `${prefix}${currentLine}` : `${prefix}${defaultPlaceholder}`;
       const nextVal = text.substring(0, lineStart) + newLine + text.substring(actualLineEnd);
+      const selStart = lineStart + prefix.length;
+      const selEnd = lineStart + newLine.length;
+      pushHistory(nextVal, selStart, selEnd);
       onChange(nextVal);
 
       requestAnimationFrame(() => {
         textarea.focus();
-        textarea.setSelectionRange(lineStart + prefix.length, lineStart + newLine.length);
+        textarea.setSelectionRange(selStart, selEnd);
         adjustHeight();
       });
       return;
@@ -364,11 +450,14 @@ export function RichMarkdownEditor({
     const formatted = lines.map((l) => (l.trim() ? `${prefix}${l}` : l)).join("\n");
 
     const nextVal = text.substring(0, start) + formatted + text.substring(end);
+    const selStart = start;
+    const selEnd = start + formatted.length;
+    pushHistory(nextVal, selStart, selEnd);
     onChange(nextVal);
 
     requestAnimationFrame(() => {
       textarea.focus();
-      textarea.setSelectionRange(start, start + formatted.length);
+      textarea.setSelectionRange(selStart, selEnd);
       adjustHeight();
     });
   };
@@ -383,11 +472,12 @@ export function RichMarkdownEditor({
     const text = textarea.value;
 
     const nextVal = text.substring(0, start) + snippet + text.substring(end);
+    const newPos = start + snippet.length;
+    pushHistory(nextVal, newPos, newPos);
     onChange(nextVal);
 
     requestAnimationFrame(() => {
       textarea.focus();
-      const newPos = start + snippet.length;
       textarea.setSelectionRange(newPos, newPos);
       adjustHeight();
     });
@@ -404,6 +494,25 @@ export function RichMarkdownEditor({
     if (e.ctrlKey || e.metaKey) {
       const code = e.code;
       const key = e.key.toLowerCase();
+
+      // Undo: Ctrl+Z (without shift)
+      if (!e.shiftKey && (code === "KeyZ" || key === "z" || key === "з" || key === "я")) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+      // Redo: Ctrl+Y OR Ctrl+Shift+Z / Cmd+Shift+Z
+      if (
+        code === "KeyY" ||
+        key === "y" ||
+        key === "ъ" ||
+        key === "н" ||
+        (e.shiftKey && (code === "KeyZ" || key === "z" || key === "з" || key === "я"))
+      ) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
 
       // Bold: physical KeyB OR character 'b' or Bulgarian 'б' or 'ф'
       if (code === "KeyB" || key === "b" || key === "б" || key === "ф") {
@@ -466,6 +575,32 @@ export function RichMarkdownEditor({
       <div className="flex flex-wrap items-center justify-between gap-1 p-2 bg-muted/40 border-b border-border/70 select-none">
         {/* Left Formatting Action Buttons (Word-like Toolbar) */}
         <div className="flex flex-wrap items-center gap-0.5">
+          {/* Undo & Redo Controls */}
+          <div className="flex items-center gap-0.5 pr-1 border-r border-border/60">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={!canUndo}
+              className="h-7 w-7 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+              onClick={handleUndo}
+              title="Undo (Ctrl+Z)"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={!canRedo}
+              className="h-7 w-7 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+              onClick={handleRedo}
+              title="Redo (Ctrl+Y)"
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
           {/* Headings H1, H2, H3 */}
           <div className="flex items-center gap-0.5 pr-1 border-r border-border/60">
             <Button
@@ -1065,8 +1200,23 @@ export function RichMarkdownEditor({
             placeholder={placeholder}
             value={value}
             onChange={(e) => {
-              onChange(e.target.value);
+              const newVal = e.target.value;
+              onChange(newVal);
               adjustHeight();
+
+              if (isUndoRedoApplyingRef.current) {
+                isUndoRedoApplyingRef.current = false;
+                return;
+              }
+
+              if (typingTimerRef.current) {
+                clearTimeout(typingTimerRef.current);
+              }
+              const s = e.target.selectionStart;
+              const end = e.target.selectionEnd;
+              typingTimerRef.current = setTimeout(() => {
+                pushHistory(newVal, s, end);
+              }, 350);
             }}
             onInput={adjustHeight}
             onKeyDown={handleKeyDown}
@@ -1095,10 +1245,11 @@ export function RichMarkdownEditor({
                 const text = textarea.value;
                 const formatted = `\n\n${textData.trim()}\n\n`;
                 const nextVal = text.substring(0, insertPos) + formatted + text.substring(insertPos);
+                const newPos = insertPos + formatted.length;
+                pushHistory(nextVal, newPos, newPos);
                 onChange(nextVal);
                 requestAnimationFrame(() => {
                   textarea.focus();
-                  const newPos = insertPos + formatted.length;
                   textarea.setSelectionRange(newPos, newPos);
                   adjustHeight();
                 });
@@ -1112,7 +1263,9 @@ export function RichMarkdownEditor({
               Supports GitHub Markdown, tables, colors, highlights & HTML
             </span>
             <span className="hidden sm:inline">
-              Shortcuts: <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+B</kbd> Bold •{" "}
+              Shortcuts: <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+Z</kbd> Undo •{" "}
+              <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+Y</kbd> Redo •{" "}
+              <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+B</kbd> Bold •{" "}
               <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+I</kbd> Italic •{" "}
               <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+U</kbd> Underline •{" "}
               <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl+K</kbd> Link •{" "}

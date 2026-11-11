@@ -1,4 +1,4 @@
-export type IdeaNoteType = "text" | "image" | "video" | "link" | "file" | "task";
+export type IdeaNoteType = "text" | "image" | "video" | "link" | "file" | "task" | "board";
 
 export type IdeaPinColor =
   | "red"
@@ -32,9 +32,22 @@ export type IdeaStringTension = "loose" | "normal" | "tight";
 
 export type BoardTheme = "cork" | "dark-cork" | "blueprint" | "chalkboard";
 
+export interface IdeaBoardItem {
+  id: string;
+  project_id: string | null;
+  name: string;
+  parent_board_id: string | null;
+  icon?: string;
+  theme?: BoardTheme;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface IdeaNote {
   id: string;
   project_id: string | null;
+  board_id?: string | null;
+  sub_board_id?: string | null; // For type === "board"
   type: IdeaNoteType;
   title: string;
   content: string; // Markdown formatted description/notes
@@ -42,6 +55,7 @@ export interface IdeaNote {
   file_name?: string | null;
   file_size?: number | null;
   task_id?: string | null; // If linking to a project task
+  icon?: string; // Icon identifier for sub-board or custom note
   color: IdeaPaperColor;
   pin_color: IdeaPinColor;
   x: number;
@@ -56,6 +70,7 @@ export interface IdeaNote {
 export interface IdeaStringConnection {
   id: string;
   project_id: string | null;
+  board_id?: string | null;
   from_note_id: string;
   to_note_id: string;
   color: IdeaStringColor;
@@ -65,7 +80,11 @@ export interface IdeaStringConnection {
 }
 
 export interface IdeaBoardData {
+  id?: string;
+  name?: string;
+  parent_board_id?: string | null;
   notes: IdeaNote[];
   connections: IdeaStringConnection[];
   theme: BoardTheme;
+  subboards?: IdeaBoardItem[];
 }

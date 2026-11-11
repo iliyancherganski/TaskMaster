@@ -49,6 +49,14 @@ import {
   updateEducationalMaterial,
   deleteEducationalMaterial,
 } from "@/lib/supabase/actions";
+import { IdeaNote } from "@/types/idea-board.types";
+import {
+  loadIdeaBoard,
+  saveIdeaBoard,
+  saveIdeaBoardToDb,
+  getLinkedTaskIdsFromCache,
+  fetchLinkedTaskIdsFromDb,
+} from "@/lib/idea-board-storage";
 import { Loader2 } from "lucide-react";
 
 export default function TaskMasterPage() {
@@ -98,8 +106,37 @@ export default function TaskMasterPage() {
   const [deleteProjectStep, setDeleteProjectStep] = useState<1 | 2 | null>(null);
   const [isDeletingProject, setIsDeletingProject] = useState(false);
 
-  // Idea board pin trigger from filter bar
+  // Idea board triggers & linked task tracking
   const [pinNoteTrigger, setPinNoteTrigger] = useState(0);
+  const [linkTaskTrigger, setLinkTaskTrigger] = useState(0);
+  const [newBoardTrigger, setNewBoardTrigger] = useState(0);
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
+  const [linkedTaskIds, setLinkedTaskIds] = useState<Set<string>>(() =>
+    getLinkedTaskIdsFromCache(selectedProjectId)
+  );
+
+  // Sync linked task IDs whenever selected project changes
+  useEffect(() => {
+    const cached = getLinkedTaskIdsFromCache(selectedProjectId);
+    setLinkedTaskIds(cached);
+
+    let isMounted = true;
+    fetchLinkedTaskIdsFromDb(selectedProjectId)
+      .then((dbTaskIds) => {
+        if (isMounted && dbTaskIds && dbTaskIds.length > 0) {
+          setLinkedTaskIds((prev) => {
+            const merged = new Set(prev);
+            dbTaskIds.forEach((id) => merged.add(id));
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedProjectId]);
 
   const STORAGE_KEY_PROJECT = "taskmaster_selected_project";
 
@@ -278,6 +315,70 @@ export default function TaskMasterPage() {
       return undefined;
     };
     return allTasks.find((t) => t.id === targetTaskId) || findRecursive(tasks);
+  };
+
+  // Navigate to Idea Board from Kanban task card lightbulb
+  const handleNavigateToIdeaBoard = (taskId: string) => {
+    const task = findTaskById(taskId);
+    if (task?.Project_id && selectedProjectId !== task.Project_id) {
+      handleSelectProject(task.Project_id);
+    }
+    setHighlightTaskId(taskId);
+    if (currentSection !== "board") {
+      setCurrentSection("board");
+    }
+    handleViewModeChange("idea-board");
+  };
+
+  // Quick link a Kanban task directly to current Idea Board
+  const handleQuickLinkTaskToBoard = async (task: TaskWithDetails) => {
+    const targetProjectId = task.Project_id || (selectedProjectId !== "all" ? selectedProjectId : null);
+    const board = loadIdeaBoard(targetProjectId);
+    const alreadyLinked = board.notes.some((n) => n.task_id === task.id);
+
+    if (!alreadyLinked) {
+      const curMaxZ = Math.max(1, ...board.notes.map((n) => n.z_index || 1));
+      const newNote: IdeaNote = {
+        id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        project_id: targetProjectId,
+        type: "task",
+        title: task.name,
+        content: task.description || "",
+        task_id: task.id,
+        color: "yellow",
+        pin_color: "red",
+        x: 400 + Math.round(Math.random() * 60 - 30),
+        y: 280 + Math.round(Math.random() * 60 - 30),
+        width: 320,
+        rotation: +(Math.random() * 4 - 2).toFixed(1),
+        z_index: curMaxZ + 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const updatedBoard = {
+        ...board,
+        notes: [...board.notes, newNote],
+      };
+
+      saveIdeaBoard(targetProjectId, updatedBoard);
+      saveIdeaBoardToDb(targetProjectId, updatedBoard).catch(() => {});
+      setLinkedTaskIds((prev) => {
+        const next = new Set(prev);
+        next.add(task.id);
+        return next;
+      });
+    }
+
+    if (task.Project_id && selectedProjectId !== task.Project_id) {
+      handleSelectProject(task.Project_id);
+    }
+
+    setHighlightTaskId(task.id);
+    if (currentSection !== "board") {
+      setCurrentSection("board");
+    }
+    handleViewModeChange("idea-board");
   };
 
   // Handle browser Back / Forward buttons (popstate)
@@ -774,6 +875,8 @@ export default function TaskMasterPage() {
               viewMode={viewMode}
               onViewModeChange={handleViewModeChange}
               onPinNote={() => setPinNoteTrigger((prev) => prev + 1)}
+              onLinkTask={() => setLinkTaskTrigger((prev) => prev + 1)}
+              onNewBoard={() => setNewBoardTrigger((prev) => prev + 1)}
               onCopyBoardLink={handleCopyBoardLink}
             />
 
@@ -789,6 +892,7 @@ export default function TaskMasterPage() {
                 <KanbanBoard
                   statuses={statuses}
                   tasks={filteredTasks}
+                  linkedTaskIds={linkedTaskIds}
                   onTasksChange={setTasks}
                   onAddTask={(statusId) => handleOpenCreateModal(statusId)}
                   onEditTask={handleOpenEditModal}
@@ -797,6 +901,8 @@ export default function TaskMasterPage() {
                   onDeleteColumn={handleDeleteColumn}
                   onAddColumn={handleOpenAddColumn}
                   onOpenSubtask={(st) => handleNavigateToTask(st.id)}
+                  onNavigateToIdeaBoard={handleNavigateToIdeaBoard}
+                  onLinkToIdeaBoard={handleQuickLinkTaskToBoard}
                 />
               ) : viewMode === "folder" ? (
                 <FolderExplorerView
@@ -819,6 +925,10 @@ export default function TaskMasterPage() {
                   searchQuery={searchQuery}
                   onOpenTask={(taskId) => handleNavigateToTask(taskId)}
                   pinNoteTrigger={pinNoteTrigger}
+                  linkTaskTrigger={linkTaskTrigger}
+                  newBoardTrigger={newBoardTrigger}
+                  targetTaskId={highlightTaskId}
+                  onLinkedTasksChange={setLinkedTaskIds}
                 />
               )}
             </div>

@@ -1,22 +1,34 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   IdeaBoardData,
+  IdeaBoardItem,
   IdeaNote,
   IdeaStringConnection,
   BoardTheme,
   IdeaStringColor,
+  IdeaPaperColor,
 } from "@/types/idea-board.types";
 import {
   loadIdeaBoard,
+  fetchIdeaBoardFromDb,
   saveIdeaBoard,
   resetIdeaBoard,
   generateInitialProjectBoard,
+  uploadIdeaAttachment,
+  fetchSubboardsFromDb,
+  getSubboardsFromCache,
+  saveSubboardsToCache,
+  createSubboard,
+  deleteSubboard,
 } from "@/lib/idea-board-storage";
-import { IdeaNoteCard } from "./IdeaNoteCard";
+import { IdeaNoteCard, HoveredCardInfo } from "./IdeaNoteCard";
 import { YarnString, LiveYarnStringPreview, YARN_COLORS } from "./YarnString";
 import { IdeaNoteModal } from "./IdeaNoteModal";
+import { LinkTaskModal } from "./LinkTaskModal";
+import { NewBoardModal, SUBBOARD_ICONS } from "./NewBoardModal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TaskWithDetails, Project } from "@/types/database.types";
 import {
   Plus,
@@ -37,7 +49,27 @@ import {
   X,
   FileText,
   Focus,
+  Undo2,
+  Redo2,
+  Folder,
+  ArrowLeft,
+  Copy,
 } from "lucide-react";
+
+const SUBBOARD_ICON_MAP: Record<string, any> = {
+  folder: Folder,
+  layers: Layers,
+  layout: Folder,
+  palette: Palette,
+  sparkles: Sparkles,
+  lightbulb: Plus,
+  coffee: Plus,
+  box: Folder,
+  target: Focus,
+  compass: Globe,
+  bookmark: Plus,
+  flame: Sparkles,
+};
 
 interface IdeaBoardViewProps {
   projectId?: string | null;
@@ -46,6 +78,10 @@ interface IdeaBoardViewProps {
   searchQuery?: string;
   onOpenTask?: (taskId: string) => void;
   pinNoteTrigger?: number;
+  linkTaskTrigger?: number;
+  newBoardTrigger?: number;
+  targetTaskId?: string | null;
+  onLinkedTasksChange?: (taskIds: Set<string>) => void;
 }
 
 const THEME_STYLES: Record<
@@ -101,11 +137,73 @@ export function IdeaBoardView({
   searchQuery = "",
   onOpenTask,
   pinNoteTrigger,
+  linkTaskTrigger,
+  newBoardTrigger,
+  targetTaskId,
+  onLinkedTasksChange,
 }: IdeaBoardViewProps) {
-  // Separate board per project
-  const [boardData, setBoardData] = useState<IdeaBoardData>(() =>
-    loadIdeaBoard(projectId)
+  // Active Sub-board navigation state (null = root project board)
+  const [currentBoardId, setCurrentBoardId] = useState<string | null>(null);
+  const [subboards, setSubboards] = useState<IdeaBoardItem[]>(() =>
+    getSubboardsFromCache(projectId)
   );
+
+  // New Sub-board Modal & Deletion states
+  const [isNewBoardModalOpen, setIsNewBoardModalOpen] = useState(false);
+  const [boardToDelete, setBoardToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  // Clipboard buffer for Copy (Ctrl+C) / Paste (Ctrl+V)
+  const copiedNotesRef = useRef<IdeaNote[]>([]);
+
+  // Separate board per project and per nested sub-board
+  const [boardData, setBoardData] = useState<IdeaBoardData>(() =>
+    loadIdeaBoard(projectId, currentBoardId)
+  );
+
+  // Compute breadcrumb path from root to current board
+  const currentProjectName = useMemo(() => {
+    if (!projectId || projectId === "all") return "Main Board";
+    const p = projects.find((proj) => proj.id === projectId);
+    return p?.name || "Main Board";
+  }, [projectId, projects]);
+
+  const currentBoardName = useMemo(() => {
+    if (!currentBoardId) return currentProjectName;
+    const b = subboards.find((sub) => sub.id === currentBoardId);
+    return b?.name || boardData.name || "Sub-Board";
+  }, [currentBoardId, subboards, currentProjectName, boardData.name]);
+
+  const boardPath = useMemo(() => {
+    const path: { id: string | null; name: string; icon?: string }[] = [
+      { id: null, name: currentProjectName, icon: "folder" },
+    ];
+
+    if (!currentBoardId) return path;
+
+    const trail: { id: string; name: string; icon?: string }[] = [];
+    let curr = subboards.find((b) => b.id === currentBoardId);
+    let guard = 0;
+    while (curr && guard < 20) {
+      trail.unshift({ id: curr.id, name: curr.name, icon: curr.icon });
+      if (curr.parent_board_id) {
+        curr = subboards.find((b) => b.id === curr?.parent_board_id);
+      } else {
+        break;
+      }
+      guard++;
+    }
+
+    // Safety fallback: if curr was not found in subboards, still display the subboard segment
+    if (trail.length === 0) {
+      trail.push({
+        id: currentBoardId,
+        name: boardData.name || currentBoardName || "Sub-Board",
+        icon: "layers",
+      });
+    }
+
+    return [...path, ...trail];
+  }, [currentBoardId, subboards, currentProjectName, currentBoardName, boardData.name]);
 
   // Pan & Zoom State
   const [zoom, setZoom] = useState(1);
@@ -158,24 +256,71 @@ export function IdeaBoardView({
     y: 200,
   });
 
+  // Task Link Modal & Target Jump Highlight State
+  const [isLinkTaskModalOpen, setIsLinkTaskModalOpen] = useState(false);
+  const [targetHighlightNoteId, setTargetHighlightNoteId] = useState<string | null>(null);
+
+  // Compute set of all task IDs currently linked on this board
+  const linkedTaskIds = useMemo(() => {
+    const set = new Set<string>();
+    boardData.notes.forEach((n) => {
+      if (n.task_id) set.add(n.task_id);
+    });
+    return set;
+  }, [boardData.notes]);
+
+  // Propagate linked task changes to parent so Kanban can render lightbulbs
+  useEffect(() => {
+    onLinkedTasksChange?.(linkedTaskIds);
+  }, [linkedTaskIds, onLinkedTasksChange]);
+
   // Help info overlay
   const [showHelp, setShowHelp] = useState(false);
 
+  // Hovered card info for string masking (Strings on top of notes, semi-transparent over hovered note)
+  const [hoveredCardInfo, setHoveredCardInfo] = useState<HoveredCardInfo | null>(null);
+  const [activeMaskCard, setActiveMaskCard] = useState<HoveredCardInfo | null>(null);
+  const hoverCardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleCardMouseEnter = useCallback((info: HoveredCardInfo) => {
+    if (hoverCardTimeoutRef.current) {
+      clearTimeout(hoverCardTimeoutRef.current);
+      hoverCardTimeoutRef.current = null;
+    }
+    setHoveredCardInfo(info);
+    setActiveMaskCard(info);
+  }, []);
+
+  const handleCardMouseLeave = useCallback((noteId: string) => {
+    if (hoverCardTimeoutRef.current) {
+      clearTimeout(hoverCardTimeoutRef.current);
+    }
+    hoverCardTimeoutRef.current = setTimeout(() => {
+      setHoveredCardInfo((current) => {
+        if (current?.id === noteId) {
+          return null;
+        }
+        return current;
+      });
+    }, 50);
+  }, []);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Helper: Read a file to a base64 Data URL so it persists cleanly in storage
-  const readFileAsDataUrl = (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(URL.createObjectURL(file));
-      reader.readAsDataURL(file);
-    });
-  };
+  // History Stacks for Canvas Undo & Redo
+  const [undoStack, setUndoStack] = useState<IdeaBoardData[]>([]);
+  const [redoStack, setRedoStack] = useState<IdeaBoardData[]>([]);
+  const dragStartBoardSnapshotRef = useRef<IdeaBoardData | null>(null);
 
-  // Re-load board cleanly whenever projectId changes
+  // Reset to root board when switching projects
   useEffect(() => {
-    const loaded = loadIdeaBoard(projectId);
+    setCurrentBoardId(null);
+  }, [projectId]);
+
+  // Re-load board cleanly whenever projectId OR currentBoardId changes (Local Cache + Supabase DB)
+  useEffect(() => {
+    // 1. Instant local cached render
+    const loaded = loadIdeaBoard(projectId, currentBoardId);
     setBoardData(loaded);
     setSelectedNoteIds([]);
     setSelectedConnectionId(null);
@@ -184,15 +329,116 @@ export function IdeaBoardView({
     setPinDragStartPos(null);
     setHoveredTargetPinNoteId(null);
     setDraggingNoteId(null);
-  }, [projectId]);
+    setUndoStack([]);
+    setRedoStack([]);
 
-  // Persist board strictly for current project
+    // 2. Fetch latest data from Supabase DB in the background
+    let isMounted = true;
+    fetchIdeaBoardFromDb(projectId, currentBoardId)
+      .then((dbBoard) => {
+        if (isMounted && dbBoard) {
+          setBoardData(dbBoard);
+        }
+      })
+      .catch((err) => {
+        console.warn("Notice: Using local idea board cache:", err);
+      });
+
+    // 3. Fetch subboards catalog for this project
+    fetchSubboardsFromDb(projectId)
+      .then((subList) => {
+        if (isMounted && subList && subList.length > 0) {
+          setSubboards((prev) => {
+            const map = new Map<string, IdeaBoardItem>();
+            prev.forEach((s) => map.set(s.id, s));
+            subList.forEach((s) => map.set(s.id, s));
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [projectId, currentBoardId]);
+
+  // Ensure any board notes present on the canvas are also in subboards catalog
+  useEffect(() => {
+    const boardNotes = boardData.notes.filter((n) => n.type === "board" && n.sub_board_id);
+    if (boardNotes.length > 0) {
+      setSubboards((prev) => {
+        let changed = false;
+        const next = [...prev];
+        boardNotes.forEach((bn) => {
+          const existing = next.find((s) => s.id === bn.sub_board_id);
+          if (!existing) {
+            next.push({
+              id: bn.sub_board_id!,
+              project_id: bn.project_id || null,
+              name: bn.title,
+              parent_board_id: currentBoardId,
+              icon: bn.icon || "folder",
+              theme: "cork",
+              created_at: bn.created_at,
+              updated_at: bn.updated_at,
+            });
+            changed = true;
+          } else if (existing.name !== bn.title || existing.icon !== bn.icon) {
+            existing.name = bn.title;
+            existing.icon = bn.icon || existing.icon;
+            changed = true;
+          }
+        });
+        if (changed) {
+          saveSubboardsToCache(projectId, next);
+          return next;
+        }
+        return prev;
+      });
+    }
+  }, [boardData.notes, currentBoardId, projectId]);
+
+  // Push board snapshot to Undo Stack
+  const pushUndoSnapshot = useCallback((snapshot: IdeaBoardData) => {
+    setUndoStack((prev) => {
+      const next = [...prev, snapshot];
+      if (next.length > 50) return next.slice(next.length - 50);
+      return next;
+    });
+    setRedoStack([]);
+  }, []);
+
+  // Board Undo Action
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const prevSnapshot = undoStack[undoStack.length - 1];
+    setUndoStack((prev) => prev.slice(0, prev.length - 1));
+    setRedoStack((prev) => [...prev, boardData]);
+    setBoardData(prevSnapshot);
+    saveIdeaBoard(projectId, prevSnapshot, currentBoardId);
+  }, [undoStack, boardData, projectId, currentBoardId]);
+
+  // Board Redo Action
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    const nextSnapshot = redoStack[redoStack.length - 1];
+    setRedoStack((prev) => prev.slice(0, prev.length - 1));
+    setUndoStack((prev) => [...prev, boardData]);
+    setBoardData(nextSnapshot);
+    saveIdeaBoard(projectId, nextSnapshot, currentBoardId);
+  }, [redoStack, boardData, projectId, currentBoardId]);
+
+  // Persist board strictly for current project & board (records undo snapshot by default)
   const updateBoard = useCallback(
-    (newBoard: IdeaBoardData) => {
+    (newBoard: IdeaBoardData, recordUndo = true) => {
+      if (recordUndo) {
+        pushUndoSnapshot(boardData);
+      }
       setBoardData(newBoard);
-      saveIdeaBoard(projectId, newBoard);
+      saveIdeaBoard(projectId, newBoard, currentBoardId);
     },
-    [projectId]
+    [boardData, projectId, currentBoardId, pushUndoSnapshot]
   );
 
   // Convert viewport client coordinates to corkboard coordinates using instantaneous refs
@@ -280,9 +526,134 @@ export function IdeaBoardView({
     setPan({ x: newPanX, y: newPanY });
   }, [boardData.notes, selectedNoteIds]);
 
-  // Keyboard Shortcuts: Shift + F to frame/focus, Escape to cancel string connection
+  // Delete Connection (Cut string)
+  const handleDeleteConnection = useCallback(
+    (connectionId: string) => {
+      updateBoard({
+        ...boardData,
+        connections: boardData.connections.filter((c) => c.id !== connectionId),
+      });
+      setSelectedConnectionId(null);
+    },
+    [boardData, updateBoard]
+  );
+
+  // Delete all currently selected notes & their connected strings
+  const handleDeleteSelectedNotes = useCallback(() => {
+    if (selectedNoteIds.length === 0) return;
+    pushUndoSnapshot(boardData);
+    const remainingNotes = boardData.notes.filter(
+      (n) => !selectedNoteIds.includes(n.id)
+    );
+    const remainingConnections = boardData.connections.filter(
+      (c) =>
+        !selectedNoteIds.includes(c.from_note_id) &&
+        !selectedNoteIds.includes(c.to_note_id)
+    );
+    const updated = {
+      ...boardData,
+      notes: remainingNotes,
+      connections: remainingConnections,
+    };
+    setBoardData(updated);
+    saveIdeaBoard(projectId, updated, currentBoardId);
+    setSelectedNoteIds([]);
+  }, [selectedNoteIds, boardData, projectId, currentBoardId, pushUndoSnapshot]);
+
+  // Duplicate Selected Notes (Shift + D) (Requirement 5)
+  const duplicateSelectedNotes = useCallback(() => {
+    if (selectedNoteIds.length === 0) return;
+    pushUndoSnapshot(boardData);
+
+    const notesToDuplicate = boardData.notes.filter((n) =>
+      selectedNoteIds.includes(n.id)
+    );
+    if (notesToDuplicate.length === 0) return;
+
+    const curMaxZ = Math.max(1, ...boardData.notes.map((n) => n.z_index));
+    const newNoteIds: string[] = [];
+
+    const duplicatedNotes: IdeaNote[] = notesToDuplicate.map((n, idx) => {
+      const newId = `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}-${idx}`;
+      newNoteIds.push(newId);
+      return {
+        ...n,
+        id: newId,
+        title: n.title.endsWith("(Copy)") ? n.title : `${n.title} (Copy)`,
+        x: n.x + 35,
+        y: n.y + 35,
+        rotation: +(Math.random() * 4 - 2).toFixed(1),
+        z_index: curMaxZ + idx + 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    });
+
+    const updated = {
+      ...boardData,
+      notes: [...boardData.notes, ...duplicatedNotes],
+    };
+
+    setBoardData(updated);
+    saveIdeaBoard(projectId, updated, currentBoardId);
+    setSelectedNoteIds(newNoteIds);
+  }, [selectedNoteIds, boardData, projectId, currentBoardId, pushUndoSnapshot]);
+
+  // Copy Selected Notes (Ctrl + C) (Requirement 5)
+  const copySelectedNotes = useCallback(() => {
+    if (selectedNoteIds.length === 0) return;
+    const notesToCopy = boardData.notes.filter((n) =>
+      selectedNoteIds.includes(n.id)
+    );
+    copiedNotesRef.current = JSON.parse(JSON.stringify(notesToCopy));
+  }, [selectedNoteIds, boardData.notes]);
+
+  // Paste Copied Notes (Ctrl + V) (Requirement 5)
+  const pasteCopiedNotes = useCallback(() => {
+    if (!copiedNotesRef.current || copiedNotesRef.current.length === 0) return;
+    pushUndoSnapshot(boardData);
+
+    const curMaxZ = Math.max(1, ...boardData.notes.map((n) => n.z_index));
+    const newNoteIds: string[] = [];
+
+    const minX = Math.min(...copiedNotesRef.current.map((n) => n.x));
+    const minY = Math.min(...copiedNotesRef.current.map((n) => n.y));
+    const targetX = mouseBoardPos.x || Math.round((-pan.x + 400) / zoom);
+    const targetY = mouseBoardPos.y || Math.round((-pan.y + 250) / zoom);
+    const offsetX = targetX - minX;
+    const offsetY = targetY - minY;
+
+    const pastedNotes: IdeaNote[] = copiedNotesRef.current.map((n, idx) => {
+      const newId = `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}-${idx}`;
+      newNoteIds.push(newId);
+      return {
+        ...n,
+        id: newId,
+        project_id: projectId && projectId !== "all" ? projectId : null,
+        board_id: currentBoardId,
+        x: n.x + offsetX,
+        y: n.y + offsetY,
+        rotation: +(Math.random() * 4 - 2).toFixed(1),
+        z_index: curMaxZ + idx + 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    });
+
+    const updated = {
+      ...boardData,
+      notes: [...boardData.notes, ...pastedNotes],
+    };
+
+    setBoardData(updated);
+    saveIdeaBoard(projectId, updated, currentBoardId);
+    setSelectedNoteIds(newNoteIds);
+  }, [boardData, mouseBoardPos, pan, zoom, projectId, currentBoardId, pushUndoSnapshot]);
+
+  // Keyboard Shortcuts: Ctrl+Z (Undo), Ctrl+Y (Redo), Shift+F (Frame), Delete (Remove), Escape (Cancel)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 1. Text field focus guard: if user is typing in any input/textarea, DO NOT touch!
       const activeEl = document.activeElement;
       if (
         activeEl &&
@@ -291,6 +662,83 @@ export function IdeaBoardView({
           (activeEl as HTMLElement).isContentEditable)
       ) {
         return;
+      }
+
+      // 2. Note modal open guard: if note modal dialog is open, do not trigger board canvas shortcuts
+      if (isNoteModalOpen) {
+        return;
+      }
+
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+      const code = e.code;
+
+      // Undo: Ctrl+Z (without shift)
+      if (
+        isCtrlOrMeta &&
+        !e.shiftKey &&
+        (key === "z" || code === "KeyZ" || key === "з" || key === "я")
+      ) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Redo: Ctrl+Y OR Ctrl+Shift+Z / Cmd+Shift+Z
+      if (
+        (isCtrlOrMeta && (key === "y" || code === "KeyY" || key === "ъ" || key === "н")) ||
+        (isCtrlOrMeta &&
+          e.shiftKey &&
+          (key === "z" || code === "KeyZ" || key === "з" || key === "я"))
+      ) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Duplicate: Shift + D (Requirement 5)
+      if (e.shiftKey && (key === "d" || code === "KeyD") && !isCtrlOrMeta) {
+        if (selectedNoteIds.length > 0) {
+          e.preventDefault();
+          duplicateSelectedNotes();
+          return;
+        }
+      }
+
+      // Copy: Ctrl + C (or Cmd + C) (Requirement 5)
+      if (isCtrlOrMeta && !e.shiftKey && (key === "c" || code === "KeyC")) {
+        const selection = window.getSelection();
+        if (selection && selection.toString().length > 0) {
+          return;
+        }
+        if (selectedNoteIds.length > 0) {
+          e.preventDefault();
+          copySelectedNotes();
+          return;
+        }
+      }
+
+      // Paste: Ctrl + V (or Cmd + V) for notes buffer (Requirement 5)
+      if (isCtrlOrMeta && !e.shiftKey && (key === "v" || code === "KeyV")) {
+        if (copiedNotesRef.current && copiedNotesRef.current.length > 0) {
+          e.preventDefault();
+          pasteCopiedNotes();
+          return;
+        }
+      }
+
+      // Delete or Backspace: Delete selected notes or selected connection
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (selectedNoteIds.length > 0) {
+          e.preventDefault();
+          handleDeleteSelectedNotes();
+          return;
+        }
+        if (selectedConnectionId) {
+          e.preventDefault();
+          handleDeleteConnection(selectedConnectionId);
+          return;
+        }
       }
 
       // Escape key: Cancel active string connecting/dragging
@@ -306,11 +754,14 @@ export function IdeaBoardView({
         if (selectedNoteIds.length > 0) {
           setSelectedNoteIds([]);
         }
+        if (selectedConnectionId) {
+          setSelectedConnectionId(null);
+        }
         return;
       }
 
       // Shift + F: Frame / focus on notes or tasks
-      if (e.shiftKey && (e.key.toLowerCase() === "f" || e.code === "KeyF")) {
+      if (e.shiftKey && (key === "f" || code === "KeyF")) {
         e.preventDefault();
         handleFitToContent();
       }
@@ -318,7 +769,21 @@ export function IdeaBoardView({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleFitToContent, connectingSourceNoteId, pinDragSourceId, selectedNoteIds]);
+  }, [
+    handleFitToContent,
+    handleUndo,
+    handleRedo,
+    handleDeleteSelectedNotes,
+    handleDeleteConnection,
+    duplicateSelectedNotes,
+    copySelectedNotes,
+    pasteCopiedNotes,
+    connectingSourceNoteId,
+    pinDragSourceId,
+    selectedNoteIds,
+    selectedConnectionId,
+    isNoteModalOpen,
+  ]);
 
   // Frame view ONCE on initial load or project switch (NEVER on selecting notes!)
   const initialFrameDoneRef = useRef<Record<string, boolean>>({});
@@ -398,6 +863,230 @@ export function IdeaBoardView({
     }
   }, [pinNoteTrigger, clientToBoardCoords]);
 
+  // Open Task Picker from external "+ Link Task" trigger in filter bar
+  useEffect(() => {
+    if (linkTaskTrigger && linkTaskTrigger > 0) {
+      setIsLinkTaskModalOpen(true);
+    }
+  }, [linkTaskTrigger]);
+
+  // Open New Board Modal from external "+ New Board" trigger in filter bar
+  useEffect(() => {
+    if (newBoardTrigger && newBoardTrigger > 0) {
+      setIsNewBoardModalOpen(true);
+    }
+  }, [newBoardTrigger]);
+
+  // Create Sub-Board (Requirement 4)
+  const handleCreateSubboard = async (data: {
+    name: string;
+    icon?: string;
+    theme?: BoardTheme;
+  }) => {
+    const newBoard = await createSubboard(
+      projectId,
+      data.name,
+      currentBoardId,
+      data.icon,
+      data.theme
+    );
+
+    // Refresh subboards list
+    setSubboards((prev) => [...prev, newBoard]);
+
+    // Create a visual square board note on the current board canvas
+    const container = containerRef.current;
+    const width = container ? container.clientWidth : 800;
+    const height = container ? container.clientHeight : 600;
+    const centerBoard = clientToBoardCoords(
+      (container ? container.getBoundingClientRect().left : 0) + width / 2,
+      (container ? container.getBoundingClientRect().top : 0) + height / 2
+    );
+
+    const curMaxZ = Math.max(...boardData.notes.map((n) => n.z_index), 1);
+    const boardNote: IdeaNote = {
+      id: `board-note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      project_id: projectId && projectId !== "all" ? projectId : null,
+      board_id: currentBoardId,
+      sub_board_id: newBoard.id,
+      type: "board",
+      title: newBoard.name,
+      content: "",
+      icon: newBoard.icon || "folder",
+      color: "yellow",
+      pin_color: "gold",
+      x: Math.max(50, Math.round(centerBoard.x - 110 + (Math.random() * 40 - 20))),
+      y: Math.max(50, Math.round(centerBoard.y - 110 + (Math.random() * 40 - 20))),
+      width: 220,
+      rotation: +(Math.random() * 3 - 1.5).toFixed(1),
+      z_index: curMaxZ + 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const updated = {
+      ...boardData,
+      notes: [...boardData.notes, boardNote],
+    };
+
+    updateBoard(updated);
+    setIsNewBoardModalOpen(false);
+  };
+
+  // Open Sub-Board (Requirement 4)
+  const handleOpenSubBoard = (boardId: string) => {
+    setCurrentBoardId(boardId);
+  };
+
+  // Navigate to Breadcrumb Step (Requirement 4)
+  const handleNavigateToBoard = (boardId: string | null) => {
+    setCurrentBoardId(boardId);
+  };
+
+  // Request Delete Sub-board (Requirement 4: Confirm popup)
+  const handleDeleteBoardRequest = (boardId: string, boardName: string) => {
+    setBoardToDelete({ id: boardId, name: boardName });
+  };
+
+  // Confirm Delete Sub-board
+  const handleConfirmDeleteBoard = async () => {
+    if (!boardToDelete) return;
+    const boardId = boardToDelete.id;
+
+    // Delete subboard records & cache
+    await deleteSubboard(boardId, projectId);
+
+    // Remove the subboard and any nested boards from local subboards state
+    setSubboards((prev) => prev.filter((b) => b.id !== boardId && b.parent_board_id !== boardId));
+
+    // Remove the board note from canvas
+    const remainingNotes = boardData.notes.filter(
+      (n) => n.sub_board_id !== boardId && n.id !== boardId
+    );
+    const remainingConnections = boardData.connections.filter(
+      (c) =>
+        remainingNotes.some((n) => n.id === c.from_note_id) &&
+        remainingNotes.some((n) => n.id === c.to_note_id)
+    );
+
+    const updated = {
+      ...boardData,
+      notes: remainingNotes,
+      connections: remainingConnections,
+    };
+    updateBoard(updated);
+
+    // If currently inside the deleted board, navigate up
+    if (currentBoardId === boardId) {
+      setCurrentBoardId(null);
+    }
+
+    setBoardToDelete(null);
+  };
+
+  // Jump to and center on target task note when opened via Kanban lightbulb
+  useEffect(() => {
+    if (!targetTaskId) return;
+
+    // Find note linked to this task
+    const note = boardData.notes.find((n) => n.task_id === targetTaskId);
+    if (note && containerRef.current) {
+      const container = containerRef.current;
+      const viewWidth = container.clientWidth || window.innerWidth;
+      const viewHeight = container.clientHeight || (window.innerHeight - 116);
+      const centerX = note.x + (note.width || 300) / 2;
+      const centerY = note.y + 110;
+
+      const targetZoom = Math.max(0.85, Math.min(zoomRef.current || 1, 1.2));
+      const newPanX = Math.round(viewWidth / 2 - centerX * targetZoom);
+      const newPanY = Math.round(viewHeight / 2 - centerY * targetZoom);
+
+      setZoom(targetZoom);
+      setPan({ x: newPanX, y: newPanY });
+      panRef.current = { x: newPanX, y: newPanY };
+      zoomRef.current = targetZoom;
+
+      setSelectedNoteIds([note.id]);
+      setTargetHighlightNoteId(note.id);
+      const timer = setTimeout(() => {
+        setTargetHighlightNoteId(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [targetTaskId, boardData.notes]);
+
+  // Direct Pin Task as Note on Board
+  const handleDirectLinkTask = useCallback(
+    (task: TaskWithDetails) => {
+      const container = containerRef.current;
+      const width = container ? container.clientWidth : 800;
+      const height = container ? container.clientHeight : 600;
+      const centerBoard = clientToBoardCoords(
+        (container ? container.getBoundingClientRect().left : 0) + width / 2,
+        (container ? container.getBoundingClientRect().top : 0) + height / 2
+      );
+
+      const curMaxZ = Math.max(...boardData.notes.map((n) => n.z_index), 1);
+      const newNoteId = `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+
+      const newNote: IdeaNote = {
+        id: newNoteId,
+        project_id: projectId && projectId !== "all" ? projectId : (task.Project_id || null),
+        type: "task",
+        title: task.name,
+        content: task.description || "",
+        task_id: task.id,
+        color: "yellow",
+        pin_color: "red",
+        x: Math.max(50, Math.round(centerBoard.x - 160 + (Math.random() * 40 - 20))),
+        y: Math.max(50, Math.round(centerBoard.y - 80 + (Math.random() * 40 - 20))),
+        width: 320,
+        rotation: +(Math.random() * 4 - 2).toFixed(1),
+        z_index: curMaxZ + 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      updateBoard({
+        ...boardData,
+        notes: [...boardData.notes, newNote],
+      });
+
+      setSelectedNoteIds([newNoteId]);
+      setTargetHighlightNoteId(newNoteId);
+      setTimeout(() => setTargetHighlightNoteId(null), 3500);
+    },
+    [boardData, clientToBoardCoords, projectId, updateBoard]
+  );
+
+  // Jump to existing note
+  const handleJumpToTaskNote = useCallback(
+    (taskId: string) => {
+      const note = boardData.notes.find((n) => n.task_id === taskId);
+      if (note && containerRef.current) {
+        const container = containerRef.current;
+        const viewWidth = container.clientWidth || window.innerWidth;
+        const viewHeight = container.clientHeight || (window.innerHeight - 116);
+        const centerX = note.x + (note.width || 300) / 2;
+        const centerY = note.y + 110;
+
+        const targetZoom = Math.max(0.85, Math.min(zoomRef.current || 1, 1.2));
+        const newPanX = Math.round(viewWidth / 2 - centerX * targetZoom);
+        const newPanY = Math.round(viewHeight / 2 - centerY * targetZoom);
+
+        setZoom(targetZoom);
+        setPan({ x: newPanX, y: newPanY });
+        panRef.current = { x: newPanX, y: newPanY };
+        zoomRef.current = targetZoom;
+
+        setSelectedNoteIds([note.id]);
+        setTargetHighlightNoteId(note.id);
+        setTimeout(() => setTargetHighlightNoteId(null), 3500);
+      }
+    },
+    [boardData.notes]
+  );
+
   // Native non-passive Wheel Zoom centered directly on mouse cursor with zero drift
   useEffect(() => {
     const container = containerRef.current;
@@ -453,10 +1142,21 @@ export function IdeaBoardView({
         setIsPanning(false);
       }
       if (draggingNoteId) {
+        if (dragStartBoardSnapshotRef.current) {
+          const initialNotes = dragStartBoardSnapshotRef.current.notes;
+          const hasMoved = boardData.notes.some((n) => {
+            const initial = initialNotes.find((inNote) => inNote.id === n.id);
+            return initial && (initial.x !== n.x || initial.y !== n.y);
+          });
+          if (hasMoved) {
+            pushUndoSnapshot(dragStartBoardSnapshotRef.current);
+          }
+          dragStartBoardSnapshotRef.current = null;
+        }
         setDraggingNoteId(null);
         setDragSelectedInitialPositions(null);
         setDragStartBoardPos(null);
-        saveIdeaBoard(projectId, boardData);
+        saveIdeaBoard(projectId, boardData, currentBoardId);
       }
       if (isMarqueeSelecting) {
         setIsMarqueeSelecting(false);
@@ -467,7 +1167,7 @@ export function IdeaBoardView({
 
     window.addEventListener("mouseup", handleGlobalMouseUp);
     return () => window.removeEventListener("mouseup", handleGlobalMouseUp);
-  }, [isPanning, draggingNoteId, isMarqueeSelecting, projectId, boardData]);
+  }, [isPanning, draggingNoteId, isMarqueeSelecting, projectId, boardData, currentBoardId, pushUndoSnapshot]);
 
   // Direct clipboard paste (Ctrl+V): pastes images or links without any modal dialogs!
   useEffect(() => {
@@ -497,7 +1197,7 @@ export function IdeaBoardView({
         e.preventDefault();
         const file = imageItem.getAsFile();
         if (file) {
-          const dataUrl = await readFileAsDataUrl(file);
+          const fileUrl = await uploadIdeaAttachment(file);
           const curMaxZ = Math.max(...boardData.notes.map((n) => n.z_index), 1);
           const newNote: IdeaNote = {
             id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -505,7 +1205,7 @@ export function IdeaBoardView({
             type: "image",
             title: "Pasted Image",
             content: "",
-            file_url: dataUrl,
+            file_url: fileUrl,
             file_name: "pasted-image.png",
             color: "white",
             pin_color: "red",
@@ -521,8 +1221,7 @@ export function IdeaBoardView({
             ...boardData,
             notes: [...boardData.notes, newNote],
           };
-          setBoardData(updated);
-          saveIdeaBoard(projectId, updated);
+          updateBoard(updated);
           return;
         }
       }
@@ -565,14 +1264,13 @@ export function IdeaBoardView({
           ...boardData,
           notes: [...boardData.notes, newNote],
         };
-        setBoardData(updated);
-        saveIdeaBoard(projectId, updated);
+        updateBoard(updated);
       }
     };
 
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
-  }, [mouseBoardPos, pan, zoom, projectId, boardData]);
+  }, [mouseBoardPos, pan, zoom, updateBoard]);
 
   // Helper: compute pin coordinates for any note
   const getNotePinPosition = useCallback((note: IdeaNote) => {
@@ -613,6 +1311,12 @@ export function IdeaBoardView({
 
   // Centralized Note Drag initiation (supports dragging multiple selected notes together!)
   const handleStartDragNote = (noteId: string, clientX: number, clientY: number) => {
+    setHoveredCardInfo(null);
+    setActiveMaskCard(null);
+
+    // Record snapshot of board before movement for Undo
+    dragStartBoardSnapshotRef.current = JSON.parse(JSON.stringify(boardData));
+
     let currentSelected = selectedNoteIds;
     if (!selectedNoteIds.includes(noteId)) {
       currentSelected = [noteId];
@@ -645,13 +1349,13 @@ export function IdeaBoardView({
   const handlePinMouseDown = (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // If currently in click-to-connect mode:
-    if (connectingSourceNoteId) {
-      if (connectingSourceNoteId !== noteId) {
+    // Check if an active string source exists (either from dragging or click-to-connect)
+    const activeSource = connectingSourceNoteId || pinDragSourceId;
+    if (activeSource) {
+      if (activeSource !== noteId) {
         // Complete the connection immediately!
-        createStringConnection(connectingSourceNoteId, noteId);
+        createStringConnection(activeSource, noteId);
       }
-      // Stop connecting mode cleanly - do not stretch a second string!
       setConnectingSourceNoteId(null);
       setPinDragSourceId(null);
       setPinDragStartPos(null);
@@ -666,6 +1370,29 @@ export function IdeaBoardView({
     setPinDragSourceId(noteId);
     setPinDragStartPos(pinPos);
     setMouseBoardPos(coords);
+  };
+
+  // Pushpin MouseUp: Release to connect or click to activate connecting mode
+  const handlePinMouseUp = (noteId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const activeSource = connectingSourceNoteId || pinDragSourceId;
+    if (activeSource && activeSource !== noteId) {
+      createStringConnection(activeSource, noteId);
+      setConnectingSourceNoteId(null);
+      setPinDragSourceId(null);
+      setPinDragStartPos(null);
+      setHoveredTargetPinNoteId(null);
+      return;
+    }
+
+    // Released on the SAME note as the drag start without dragging:
+    // This was a click! Transition to click-to-connect mode so user can click a 2nd pin!
+    if (pinDragSourceId === noteId) {
+      setConnectingSourceNoteId(noteId);
+      setPinDragSourceId(null);
+      setPinDragStartPos(null);
+      setHoveredTargetPinNoteId(null);
+    }
   };
 
   // Pushpin Hover during string stretch
@@ -685,10 +1412,11 @@ export function IdeaBoardView({
   // Pushpin Click fallback
   const handlePinClick = (targetNoteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-
-    // If currently in click-to-connect mode and clicked a different pin
-    if (connectingSourceNoteId && connectingSourceNoteId !== targetNoteId) {
-      createStringConnection(connectingSourceNoteId, targetNoteId);
+    const activeSource = connectingSourceNoteId || pinDragSourceId;
+    if (activeSource) {
+      if (activeSource !== targetNoteId) {
+        createStringConnection(activeSource, targetNoteId);
+      }
       setConnectingSourceNoteId(null);
       setPinDragSourceId(null);
       setPinDragStartPos(null);
@@ -799,10 +1527,21 @@ export function IdeaBoardView({
 
     // 2. Finish Note Dragging
     if (draggingNoteId) {
+      if (dragStartBoardSnapshotRef.current) {
+        const initialNotes = dragStartBoardSnapshotRef.current.notes;
+        const hasMoved = boardData.notes.some((n) => {
+          const initial = initialNotes.find((inNote) => inNote.id === n.id);
+          return initial && (initial.x !== n.x || initial.y !== n.y);
+        });
+        if (hasMoved) {
+          pushUndoSnapshot(dragStartBoardSnapshotRef.current);
+        }
+        dragStartBoardSnapshotRef.current = null;
+      }
       setDraggingNoteId(null);
       setDragSelectedInitialPositions(null);
       setDragStartBoardPos(null);
-      saveIdeaBoard(projectId, boardData);
+      saveIdeaBoard(projectId, boardData, currentBoardId);
       return;
     }
 
@@ -882,12 +1621,15 @@ export function IdeaBoardView({
     }
     setSelectedConnectionId(null);
     const maxZ = Math.max(...boardData.notes.map((n) => n.z_index), 1);
-    updateBoard({
-      ...boardData,
-      notes: boardData.notes.map((n) =>
-        n.id === id ? { ...n, z_index: maxZ + 1 } : n
-      ),
-    });
+    updateBoard(
+      {
+        ...boardData,
+        notes: boardData.notes.map((n) =>
+          n.id === id ? { ...n, z_index: maxZ + 1 } : n
+        ),
+      },
+      false
+    );
   };
 
   // Save or Update Note (handles automatic connection if spawned from a stretched string)
@@ -996,18 +1738,10 @@ export function IdeaBoardView({
     });
   };
 
-  // Delete Connection (Cut string)
-  const handleDeleteConnection = (connectionId: string) => {
-    updateBoard({
-      ...boardData,
-      connections: boardData.connections.filter((c) => c.id !== connectionId),
-    });
-    setSelectedConnectionId(null);
-  };
-
   // Reset current project's board
   const handleResetBoard = () => {
     if (confirm("Reset this project's Idea Board to default layout?")) {
+      pushUndoSnapshot(boardData);
       const reset = resetIdeaBoard(projectId);
       setBoardData(reset);
       setZoom(1);
@@ -1031,7 +1765,7 @@ export function IdeaBoardView({
         const file = files[i];
         const isImg = file.type.startsWith("image/");
         const isVid = file.type.startsWith("video/");
-        const dataUrl = await readFileAsDataUrl(file);
+        const fileUrl = await uploadIdeaAttachment(file);
 
         const note: IdeaNote = {
           id: `note-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
@@ -1039,7 +1773,7 @@ export function IdeaBoardView({
           type: isImg ? "image" : isVid ? "video" : "file",
           title: file.name.replace(/\.[^/.]+$/, ""),
           content: "",
-          file_url: dataUrl,
+          file_url: fileUrl,
           file_name: file.name,
           color: isImg ? "white" : "kraft",
           pin_color: isImg ? "gold" : "red",
@@ -1058,8 +1792,7 @@ export function IdeaBoardView({
         ...boardData,
         notes: [...boardData.notes, ...newNotes],
       };
-      setBoardData(updated);
-      saveIdeaBoard(projectId, updated);
+      updateBoard(updated);
       return;
     }
 
@@ -1094,8 +1827,7 @@ export function IdeaBoardView({
         ...boardData,
         notes: [...boardData.notes, newNote],
       };
-      setBoardData(updated);
-      saveIdeaBoard(projectId, updated);
+      updateBoard(updated);
       return;
     }
 
@@ -1141,8 +1873,7 @@ export function IdeaBoardView({
         ...boardData,
         notes: [...boardData.notes, newNote],
       };
-      setBoardData(updated);
-      saveIdeaBoard(projectId, updated);
+      updateBoard(updated);
     }
   };
 
@@ -1218,21 +1949,105 @@ export function IdeaBoardView({
         {/* Subtle Warm Vignette Frame Reflection */}
         <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_60px_rgba(120,70,20,0.12)] z-20" />
 
-        {/* Empty State Card if no notes exist */}
+        {/* Floating Board Hierarchy Breadcrumb Overlay (Requirement 4) */}
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          className="absolute top-3 left-4 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/85 backdrop-blur-md border border-white/20 text-white shadow-xl pointer-events-auto text-xs font-medium"
+        >
+          {currentBoardId && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleNavigateToBoard(null);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 mr-1 rounded-md bg-amber-600 hover:bg-amber-500 active:scale-95 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+              title="Return to Root / Main Board"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Root</span>
+            </button>
+          )}
+
+          {boardPath.map((item, idx) => {
+            const isLast = idx === boardPath.length - 1;
+            const IconComponent =
+              (item.icon && SUBBOARD_ICON_MAP[item.icon]) || Folder;
+
+            return (
+              <React.Fragment key={item.id ?? "root"}>
+                {idx > 0 && <span className="text-zinc-500 select-none">/</span>}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleNavigateToBoard(item.id);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                    isLast
+                      ? "font-bold text-amber-300 bg-amber-500/25 border border-amber-400/40 shadow-xs"
+                      : "text-zinc-300 hover:text-white hover:bg-white/15"
+                  }`}
+                  title={isLast ? `Current: ${item.name}` : `Navigate to ${item.name}`}
+                >
+                  <IconComponent className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <span className="truncate max-w-[130px] sm:max-w-[200px]">{item.name}</span>
+                </button>
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+        {/* Empty State Card if no notes exist (Requirement 2) */}
         {boardData.notes.length === 0 && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-3 p-6 rounded-2xl bg-[#fff9db] border-2 border-[#caa065] shadow-2xl text-center max-w-sm pointer-events-auto">
             <span className="text-3xl">📌</span>
-            <h4 className="font-extrabold text-base text-zinc-900">Your Idea Board is Empty</h4>
+            <h4 className="font-extrabold text-base text-zinc-900">Your board is empty</h4>
             <p className="text-xs text-zinc-600">
-              Click <strong>+ Pin Note</strong> above, drag images/links onto the board, or load starter notes for this project.
+              Pin your thoughts, link tasks, create nested boards, or drag images &amp; links directly onto the corkboard.
             </p>
-            <button
-              type="button"
-              onClick={handleResetBoard}
-              className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
-            >
-              Load Starter Project Notes
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
+              {currentBoardId && (
+                <button
+                  type="button"
+                  onClick={() => handleNavigateToBoard(null)}
+                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span>← Back to Root</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingNote(null);
+                  setPendingConnectSourceId(null);
+                  setIsNoteModalOpen(true);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>+ Pin Note</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsLinkTaskModalOpen(true)}
+                className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <CheckSquare className="h-3.5 w-3.5" />
+                <span>+ Link Task</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsNewBoardModalOpen(true)}
+                className="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-900 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span>+ New Board</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -1243,11 +2058,39 @@ export function IdeaBoardView({
             transform: `translate(${isNaN(pan.x) ? 0 : pan.x}px, ${isNaN(pan.y) ? 0 : pan.y}px) scale(${isNaN(zoom) || zoom <= 0 ? 1 : zoom})`,
           }}
         >
-          {/* SVG Overlay: Renders all connected yarn strings (pointer-events-none on canvas) */}
+          {/* SVG Overlay: Renders all connected yarn strings ON TOP of notes (zIndex 30) */}
           <svg
             className="absolute inset-0 w-[5000px] h-[5000px] overflow-visible pointer-events-none"
-            style={{ zIndex: 10 }}
+            style={{ zIndex: 30 }}
           >
+            <defs>
+              <mask
+                id="hovered-note-yarn-mask"
+                maskUnits="userSpaceOnUse"
+                maskContentUnits="userSpaceOnUse"
+              >
+                {/* Solid white canvas background = 100% visible strings outside notes */}
+                <rect x="-10000" y="-10000" width="30000" height="30000" fill="white" />
+                {/* Over the hovered note: gray rect (#484848) dims opacity to ~28% (semi-transparent) */}
+                {activeMaskCard && (
+                  <g
+                    transform={`translate(${activeMaskCard.x}, ${activeMaskCard.y}) rotate(${activeMaskCard.rotation} ${activeMaskCard.width / 2} ${activeMaskCard.height / 2})`}
+                  >
+                    <rect
+                      x="0"
+                      y="0"
+                      width={activeMaskCard.width}
+                      height={activeMaskCard.height}
+                      rx="12"
+                      ry="12"
+                      fill={hoveredCardInfo ? "#484848" : "#ffffff"}
+                      style={{ transition: "fill 180ms ease" }}
+                    />
+                  </g>
+                )}
+              </mask>
+            </defs>
+
             {/* Render all established string connections */}
             {boardData.connections.map((conn) => {
               const sourceNote = boardData.notes.find((n) => n.id === conn.from_note_id);
@@ -1264,6 +2107,7 @@ export function IdeaBoardView({
                   startPoint={p1}
                   endPoint={p2}
                   isSelected={selectedConnectionId === conn.id}
+                  isNoteHovered={hoveredCardInfo !== null}
                   onSelect={() => setSelectedConnectionId(conn.id)}
                   onDelete={() => handleDeleteConnection(conn.id)}
                   onUpdate={(updates) => handleUpdateConnection(conn.id, updates)}
@@ -1294,8 +2138,11 @@ export function IdeaBoardView({
             />
           )}
 
-          {/* HTML Overlay: Renders all pinned notes (high z-index, notes interactive) */}
-          <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 20 }}>
+          {/* HTML Overlay: Renders all pinned notes (zIndex 20, or 40 while actively dragging a note) */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ zIndex: draggingNoteId ? 40 : 20 }}
+          >
             {boardData.notes.map((note) => {
               const matchesSearch =
                 !isSearchActive ||
@@ -1318,13 +2165,22 @@ export function IdeaBoardView({
                     isConnectingSource={isSource}
                     isConnectTarget={isTarget}
                     isSelected={selectedNoteIds.includes(note.id)}
+                    isTargetHighlight={targetHighlightNoteId === note.id}
                     onSelect={() => {
                       if (!selectedNoteIds.includes(note.id)) {
                         setSelectedNoteIds([note.id]);
                       }
                     }}
+                    onHoverCard={(info) => {
+                      if (info) {
+                        handleCardMouseEnter(info);
+                      } else {
+                        handleCardMouseLeave(note.id);
+                      }
+                    }}
                     onStartDrag={handleStartDragNote}
                     onPinMouseDown={handlePinMouseDown}
+                    onPinMouseUp={handlePinMouseUp}
                     onPinMouseEnter={handlePinMouseEnter}
                     onPinMouseLeave={handlePinMouseLeave}
                     onPinClick={handlePinClick}
@@ -1335,6 +2191,8 @@ export function IdeaBoardView({
                     onDelete={handleDeleteNote}
                     onDuplicate={handleDuplicateNote}
                     onOpenTask={onOpenTask}
+                    onOpenSubBoard={(subBoardId) => handleOpenSubBoard(subBoardId)}
+                    onDeleteBoard={(subBoardId, boardName) => handleDeleteBoardRequest(subBoardId, boardName)}
                   />
                 </div>
               );
@@ -1385,6 +2243,33 @@ export function IdeaBoardView({
           <div className="h-4 w-px bg-white/20 mx-0.5" />
           <button
             type="button"
+            onClick={handleUndo}
+            disabled={undoStack.length === 0}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              undoStack.length === 0
+                ? "opacity-30 cursor-not-allowed text-zinc-500"
+                : "hover:bg-white/20 text-zinc-300 hover:text-white"
+            }`}
+            title="Undo Board Action (Ctrl+Z)"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRedo}
+            disabled={redoStack.length === 0}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              redoStack.length === 0
+                ? "opacity-30 cursor-not-allowed text-zinc-500"
+                : "hover:bg-white/20 text-zinc-300 hover:text-white"
+            }`}
+            title="Redo Board Action (Ctrl+Y or Ctrl+Shift+Z)"
+          >
+            <Redo2 className="h-3.5 w-3.5" />
+          </button>
+          <div className="h-4 w-px bg-white/20 mx-0.5" />
+          <button
+            type="button"
             onClick={handleResetBoard}
             className="p-1.5 rounded-lg hover:bg-white/20 text-zinc-300 hover:text-white cursor-pointer"
             title="Reset this project's board to initial layout"
@@ -1419,10 +2304,13 @@ export function IdeaBoardView({
             </div>
             <ul className="space-y-2 text-zinc-300 text-[11px] leading-relaxed">
               <li>
+                <strong className="text-amber-200">↩️ Undo &amp; Redo:</strong> Press <kbd className="bg-white/10 px-1 py-0.5 rounded">Ctrl + Z</kbd> to undo board moves, creates, deletes, and connections. Press <kbd className="bg-white/10 px-1 py-0.5 rounded">Ctrl + Y</kbd> or <kbd className="bg-white/10 px-1 py-0.5 rounded">Ctrl + Shift + Z</kbd> to redo. When typing inside text fields or note descriptions, your text undo works independently without affecting the board!
+              </li>
+              <li>
                 <strong className="text-amber-200">🖱️ Pan &amp; Zoom:</strong> Drag with <kbd className="bg-white/10 px-1 py-0.5 rounded">Middle Mouse</kbd> or <kbd className="bg-white/10 px-1 py-0.5 rounded">Ctrl + Left Click</kbd> to pan. Scroll the mouse wheel to zoom directly into wherever your cursor is.
               </li>
               <li>
-                <strong className="text-amber-200">📦 Multi-Select:</strong> Drag a box on the corkboard background to select multiple notes. Drag any selected note to move the whole group together!
+                <strong className="text-amber-200">📦 Multi-Select:</strong> Drag a box on the corkboard background to select multiple notes. Drag any selected note to move the whole group together! Press <kbd className="bg-white/10 px-1 py-0.5 rounded">Delete</kbd> to remove selected notes.
               </li>
               <li>
                 <strong className="text-amber-200">🧶 Strings &amp; Ideas:</strong> Click and hold down any note&apos;s pushpin, then drag the string. Drop on another pin to tie them, or drop on empty corkboard to spawn a connected note!
@@ -1431,7 +2319,7 @@ export function IdeaBoardView({
                 <strong className="text-amber-200">🖼️ Instant Drag &amp; Drop:</strong> Drag images, videos, or web links directly onto the board or press <kbd className="bg-white/10 px-1 py-0.5 rounded">Ctrl + V</kbd> to paste immediately without opening any modals.
               </li>
               <li>
-                <strong className="text-amber-200">📝 Edit Notes:</strong> Double-click any note card or click the pencil icon to edit formatting, content, or paper colors.
+                <strong className="text-amber-200">📝 Edit Notes:</strong> Double-click any note card or click the pencil icon to edit formatting, content, or paper colors with full rich-text Markdown and dedicated Undo/Redo.
               </li>
             </ul>
           </div>
@@ -1450,6 +2338,36 @@ export function IdeaBoardView({
         editingNote={editingNote}
         availableTasks={availableTasks}
         initialCoords={clickCoords}
+      />
+
+      {/* Task Picker & Linking Modal */}
+      <LinkTaskModal
+        isOpen={isLinkTaskModalOpen}
+        onClose={() => setIsLinkTaskModalOpen(false)}
+        availableTasks={availableTasks}
+        linkedTaskIds={linkedTaskIds}
+        onSelectTask={handleDirectLinkTask}
+        onJumpToNote={handleJumpToTaskNote}
+        currentProjectId={projectId}
+      />
+
+      {/* New Nested Sub-Board Modal (Requirement 4) */}
+      <NewBoardModal
+        isOpen={isNewBoardModalOpen}
+        onClose={() => setIsNewBoardModalOpen(false)}
+        onSubmit={handleCreateSubboard}
+        parentBoardName={currentBoardName}
+      />
+
+      {/* Delete Sub-board Confirmation Dialog (Requirement 4: Confirm popup) */}
+      <ConfirmDialog
+        isOpen={Boolean(boardToDelete)}
+        onClose={() => setBoardToDelete(null)}
+        onConfirm={handleConfirmDeleteBoard}
+        title="Delete Idea Board?"
+        description={`Are you sure you want to delete "${boardToDelete?.name}"? All nested notes and string connections within this board will be removed permanently.`}
+        confirmText="Delete Board"
+        variant="destructive"
       />
     </div>
   );

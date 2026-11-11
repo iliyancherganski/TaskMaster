@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 interface KanbanBoardProps {
   statuses: Status[];
   tasks: TaskWithDetails[];
+  linkedTaskIds?: Set<string>;
   onTasksChange: (tasks: TaskWithDetails[]) => void;
   onAddTask: (statusId: string) => void;
   onEditTask: (task: TaskWithDetails) => void;
@@ -32,11 +33,14 @@ interface KanbanBoardProps {
   onDeleteColumn?: (statusId: string) => void;
   onAddColumn?: () => void;
   onOpenSubtask?: (subtask: TaskWithDetails) => void;
+  onNavigateToIdeaBoard?: (taskId: string) => void;
+  onLinkToIdeaBoard?: (task: TaskWithDetails) => void;
 }
 
 export function KanbanBoard({
   statuses,
   tasks,
+  linkedTaskIds,
   onTasksChange,
   onAddTask,
   onEditTask,
@@ -45,6 +49,8 @@ export function KanbanBoard({
   onDeleteColumn,
   onAddColumn,
   onOpenSubtask,
+  onNavigateToIdeaBoard,
+  onLinkToIdeaBoard,
 }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<TaskWithDetails | null>(null);
 
@@ -178,12 +184,15 @@ export function KanbanBoard({
               status={status}
               tasks={columnTasks}
               allStatuses={statuses}
+              linkedTaskIds={linkedTaskIds}
               onAddTask={onAddTask}
               onEditTask={onEditTask}
               onDeleteTask={onDeleteTask}
               onEditColumn={onEditColumn}
               onDeleteColumn={onDeleteColumn}
               onOpenSubtask={onOpenSubtask}
+              onNavigateToIdeaBoard={onNavigateToIdeaBoard}
+              onLinkToIdeaBoard={onLinkToIdeaBoard}
             />
           );
         })}
@@ -216,6 +225,7 @@ export function KanbanBoard({
             task={activeTask}
             status={statuses.find((s) => s.id === activeTask.status_id)}
             allStatuses={statuses}
+            isLinkedToIdeaBoard={linkedTaskIds?.has(activeTask.id)}
             isOverlay
           />
         ) : null}
