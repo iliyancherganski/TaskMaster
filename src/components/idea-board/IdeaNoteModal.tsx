@@ -174,7 +174,16 @@ export function IdeaNoteModal({
           </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+              e.preventDefault();
+              handleSubmit(e);
+            }
+          }}
+          className="space-y-4 pt-2"
+        >
           {/* Note Type Selector */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
@@ -301,6 +310,7 @@ export function IdeaNoteModal({
             <RichMarkdownEditor
               value={content}
               onChange={setContent}
+              onSave={() => handleSubmit({ preventDefault: () => {} } as any)}
               placeholder="Write your thoughts (Markdown supported: **bold**, *italic*, lists, tables, code, quotes)..."
               rows={5}
               minHeight="140px"

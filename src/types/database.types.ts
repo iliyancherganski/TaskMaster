@@ -648,6 +648,7 @@ export type Database = {
           x: number;
           y: number;
           width: number;
+          height?: number | null;
           rotation: number;
           z_index: number;
           created_at: string;
@@ -671,6 +672,7 @@ export type Database = {
           x?: number;
           y?: number;
           width?: number;
+          height?: number | null;
           rotation?: number;
           z_index?: number;
           created_at?: string;
@@ -694,6 +696,7 @@ export type Database = {
           x?: number;
           y?: number;
           width?: number;
+          height?: number | null;
           rotation?: number;
           z_index?: number;
           created_at?: string;
@@ -879,7 +882,7 @@ export interface TaskWithDetails extends Task {
 
 export interface TaskFormData {
   name: string;
-  description?: string;
+  description?: string | null;
   status_id?: string;
   Project_id?: string;
   Task_Parent_Id?: string | null;

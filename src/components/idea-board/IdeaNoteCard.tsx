@@ -89,6 +89,14 @@ interface IdeaNoteCardProps {
   onOpenTask?: (taskId: string) => void;
   onOpenSubBoard?: (boardId: string, boardName: string) => void;
   onDeleteBoard?: (boardId: string, boardName: string) => void;
+  onStartResize?: (
+    noteId: string,
+    direction: "horizontal" | "vertical" | "both",
+    clientX: number,
+    clientY: number,
+    initialWidth: number,
+    initialHeight: number
+  ) => void;
 }
 
 const PAPER_STYLES: Record<
@@ -173,6 +181,7 @@ export function IdeaNoteCard({
   onOpenTask,
   onOpenSubBoard,
   onDeleteBoard,
+  onStartResize,
 }: IdeaNoteCardProps) {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -243,7 +252,7 @@ export function IdeaNoteCard({
         }
         const el = cardRef.current;
         const width = el ? el.offsetWidth : note.type === "board" ? 220 : note.width;
-        const height = el ? el.offsetHeight : note.type === "board" ? 220 : 250;
+        const height = el ? el.offsetHeight : note.type === "board" ? 220 : note.height || 250;
         onHoverCard?.({
           id: note.id,
           x: note.x,
@@ -276,7 +285,7 @@ export function IdeaNoteCard({
         left: `${note.x}px`,
         top: `${note.y}px`,
         width: `${note.type === "board" ? 220 : note.width}px`,
-        height: note.type === "board" ? "220px" : undefined,
+        height: note.type === "board" ? "220px" : note.height ? `${note.height}px` : undefined,
         zIndex: isDragging ? 9999 : note.z_index,
         transform: `rotate(${isDragging ? 0 : note.rotation}deg)`,
       }}
@@ -325,11 +334,56 @@ export function IdeaNoteCard({
       {/* Main Physical Note Body */}
       <div
         className={`relative rounded-xl border ${style.border} ${style.bg} ${style.text} overflow-hidden shadow-[0_10px_25px_-5px_rgba(0,0,0,0.3),0_4px_10px_rgba(0,0,0,0.15)] transition-all ${
-          note.type === "board" ? "h-full flex flex-col justify-between" : ""
+          note.type === "board"
+            ? "h-full flex flex-col justify-between"
+            : note.height
+            ? "h-full flex flex-col justify-between"
+            : ""
         }`}
       >
         {/* Subtle Paper Grain / Fiber Overlay */}
         <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:16px_16px]" />
+
+        {/* Resize Handles (Requirement 4: stretch sideways and up/down) */}
+        {note.type !== "board" && (
+          <>
+            {/* Right Edge: Width / Sideways Stretch */}
+            <div
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                const w = cardRef.current?.offsetWidth || note.width || 300;
+                const h = cardRef.current?.offsetHeight || note.height || 220;
+                onStartResize?.(note.id, "horizontal", e.clientX, e.clientY, w, h);
+              }}
+              className="absolute top-0 right-0 w-2 h-full cursor-ew-resize hover:bg-amber-500/25 active:bg-amber-500/40 transition-colors z-30"
+              title="Drag to resize note width"
+            />
+            {/* Bottom Edge: Height / Up-Down Stretch */}
+            <div
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                const w = cardRef.current?.offsetWidth || note.width || 300;
+                const h = cardRef.current?.offsetHeight || note.height || 220;
+                onStartResize?.(note.id, "vertical", e.clientX, e.clientY, w, h);
+              }}
+              className="absolute bottom-0 left-0 w-full h-2 cursor-ns-resize hover:bg-amber-500/25 active:bg-amber-500/40 transition-colors z-30"
+              title="Drag to resize note height"
+            />
+            {/* Bottom-Right Corner: Width and Height Stretch */}
+            <div
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                const w = cardRef.current?.offsetWidth || note.width || 300;
+                const h = cardRef.current?.offsetHeight || note.height || 220;
+                onStartResize?.(note.id, "both", e.clientX, e.clientY, w, h);
+              }}
+              className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize flex items-end justify-end p-0.5 hover:bg-amber-500/30 active:bg-amber-500/50 rounded-br transition-colors z-30 opacity-60 group-hover:opacity-100"
+              title="Drag to resize note width and height"
+            >
+              <div className="w-2 h-2 border-r-2 border-b-2 border-current/40" />
+            </div>
+          </>
+        )}
 
         {/* Square Sub-Idea Board Box (Requirement 4) */}
         {note.type === "board" ? (
@@ -462,7 +516,7 @@ export function IdeaNoteCard({
             </div>
 
         {/* Note Body Content according to Type */}
-        <div className="p-3.5 space-y-2.5 text-xs">
+        <div className={`p-3.5 space-y-2.5 text-xs ${note.height ? "flex-1 min-h-0 overflow-y-auto" : ""}`}>
           {/* 1. Image Note (Polaroid Frame) */}
           {note.type === "image" && fileUrl && (
             <div className="relative rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-black/5 group/img">

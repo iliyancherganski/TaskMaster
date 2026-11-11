@@ -43,12 +43,20 @@ import {
 
 const GROUP_COLORS = [
   "#10b981", // Emerald
-  "#3b82f6", // Blue
-  "#8b5cf6", // Purple
-  "#ec4899", // Pink
-  "#f59e0b", // Amber
+  "#14b8a6", // Teal
   "#06b6d4", // Cyan
+  "#0284c7", // Sky
+  "#3b82f6", // Blue
+  "#6366f1", // Indigo
+  "#8b5cf6", // Purple
+  "#d946ef", // Fuchsia
+  "#ec4899", // Pink
   "#f43f5e", // Rose
+  "#ef4444", // Red
+  "#f97316", // Coral
+  "#ea580c", // Orange
+  "#f59e0b", // Amber
+  "#eab308", // Yellow
   "#64748b", // Slate
 ];
 
@@ -283,7 +291,19 @@ export function StudyGroupModal({
 
             {/* Color Accent Picker */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Color Accent</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Color Accent</Label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-mono text-muted-foreground uppercase">{color}</span>
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="h-5 w-5 rounded cursor-pointer border border-border bg-transparent p-0"
+                    title="Choose custom color"
+                  />
+                </div>
+              </div>
               <div className="flex items-center gap-2 flex-wrap">
                 {GROUP_COLORS.map((c) => (
                   <button

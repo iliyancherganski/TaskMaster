@@ -98,12 +98,20 @@ import {
 
 const TYPE_COLORS = [
   "#3b82f6", // Blue
-  "#ef4444", // Red
-  "#10b981", // Emerald
-  "#ec4899", // Pink
-  "#8b5cf6", // Purple
-  "#f59e0b", // Amber
+  "#0284c7", // Sky
   "#06b6d4", // Cyan
+  "#14b8a6", // Teal
+  "#10b981", // Emerald
+  "#84cc16", // Lime
+  "#eab308", // Yellow
+  "#f59e0b", // Amber
+  "#ea580c", // Orange
+  "#ef4444", // Red
+  "#f43f5e", // Rose
+  "#ec4899", // Pink
+  "#d946ef", // Fuchsia
+  "#8b5cf6", // Purple
+  "#6366f1", // Indigo
   "#64748b", // Slate
 ];
 
@@ -765,7 +773,7 @@ export function TaskModal({
       const dueIso = dueDate ? new Date(`${dueDate}T23:59:59.999Z`).toISOString() : null;
       const formData: TaskFormData = {
         name: name.trim(),
-        description: description.trim() || undefined,
+        description: description.trim(),
         status_id: statusId || undefined,
         Project_id: projectId || undefined,
         Task_Parent_Id: parentTaskId,
@@ -781,7 +789,7 @@ export function TaskModal({
         const updatedTaskWithDetails: TaskWithDetails = {
           ...task,
           name: formData.name,
-          description: formData.description || null,
+          description: formData.description?.trim() ? formData.description.trim() : null,
           status_id: formData.status_id || null,
           Project_id: formData.Project_id || null,
           due_date: dueIso,
@@ -1431,6 +1439,13 @@ export function TaskModal({
                                 title={c}
                               />
                             ))}
+                            <input
+                              type="color"
+                              value={newTypeColor}
+                              onChange={(e) => setNewTypeColor(e.target.value)}
+                              className="h-4 w-4 rounded cursor-pointer border border-border bg-transparent p-0 ml-0.5"
+                              title="Pick custom color"
+                            />
                           </div>
                           <Button
                             type="button"

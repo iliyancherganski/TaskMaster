@@ -668,7 +668,6 @@ export default function TaskMasterPage() {
 
   const handleResetFilters = () => {
     setSearchQuery("");
-    setSelectedProjectId("all");
     setSelectedAssigneeId("all");
     setSelectedTypeId("all");
   };
@@ -872,6 +871,7 @@ export default function TaskMasterPage() {
               totalTasks={tasks.length}
               completedTasks={completedCount}
               onResetFilters={handleResetFilters}
+              onNewTask={() => handleOpenCreateModal()}
               viewMode={viewMode}
               onViewModeChange={handleViewModeChange}
               onPinNote={() => setPinNoteTrigger((prev) => prev + 1)}

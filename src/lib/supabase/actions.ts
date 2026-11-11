@@ -1493,7 +1493,12 @@ export async function updateTask(
           return {
             ...task,
             name: formData.name ?? task.name,
-            description: formData.description !== undefined ? formData.description : task.description,
+            description:
+              formData.description !== undefined
+                ? formData.description?.trim()
+                  ? formData.description.trim()
+                  : null
+                : task.description,
             status_id: formData.status_id ?? task.status_id,
             Project_id: formData.Project_id ?? task.Project_id,
             due_date: formData.due_date !== undefined ? formData.due_date : task.due_date,
@@ -1526,7 +1531,9 @@ export async function updateTask(
     updated_at: new Date().toISOString(),
   };
   if (formData.name !== undefined) updatePayload.name = formData.name;
-  if (formData.description !== undefined) updatePayload.description = formData.description;
+  if (formData.description !== undefined) {
+    updatePayload.description = formData.description?.trim() ? formData.description.trim() : null;
+  }
   if (formData.status_id !== undefined) updatePayload.status_id = formData.status_id;
   if (formData.Project_id !== undefined) updatePayload.Project_id = formData.Project_id;
   if (formData.due_date !== undefined) updatePayload.due_date = formData.due_date;

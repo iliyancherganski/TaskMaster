@@ -42,6 +42,7 @@ interface KanbanFilterBarProps {
   totalTasks: number;
   completedTasks: number;
   onResetFilters: () => void;
+  onNewTask?: () => void;
   viewMode?: "kanban" | "folder" | "idea-board";
   onViewModeChange?: (mode: "kanban" | "folder" | "idea-board") => void;
   onPinNote?: () => void;
@@ -65,6 +66,7 @@ export function KanbanFilterBar({
   totalTasks,
   completedTasks,
   onResetFilters,
+  onNewTask,
   viewMode = "kanban",
   onViewModeChange,
   onPinNote,
@@ -75,7 +77,6 @@ export function KanbanFilterBar({
   const isIdeaBoard = viewMode === "idea-board";
   const hasActiveFilters =
     Boolean(searchQuery) ||
-    selectedProjectId !== "all" ||
     selectedAssigneeId !== "all" ||
     selectedTypeId !== "all";
 
@@ -90,7 +91,7 @@ export function KanbanFilterBar({
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Search & Selectors (or Idea Board Actions) */}
         <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
-          {/* View Mode Toggle */}
+          {/* View Mode Toggle: Kanban / Folder toggle on one button, Idea Board on the other */}
           {onViewModeChange && (
             <div
               className={`flex items-center rounded-lg border p-0.5 ${
@@ -101,36 +102,42 @@ export function KanbanFilterBar({
             >
               <button
                 type="button"
-                onClick={() => onViewModeChange("kanban")}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                  viewMode === "kanban"
+                onClick={() => {
+                  if (viewMode === "kanban") {
+                    onViewModeChange("folder");
+                  } else {
+                    onViewModeChange("kanban");
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  viewMode === "kanban" || viewMode === "folder"
                     ? "bg-background text-foreground shadow-xs"
                     : isIdeaBoard
                     ? "text-amber-900/70 hover:text-amber-950"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-                <span>Kanban</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onViewModeChange("folder")}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                title={
                   viewMode === "folder"
-                    ? "bg-background text-foreground shadow-xs"
-                    : isIdeaBoard
-                    ? "text-amber-900/70 hover:text-amber-950"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    ? "Switch to Kanban View"
+                    : "Switch to Folder Structure View"
+                }
               >
-                <FolderTree className="h-3.5 w-3.5 text-amber-500" />
-                <span>Folder Structure</span>
+                {viewMode === "folder" ? (
+                  <>
+                    <FolderTree className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Folder Structure</span>
+                  </>
+                ) : (
+                  <>
+                    <LayoutGrid className="h-3.5 w-3.5 text-primary" />
+                    <span>Kanban</span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
                 onClick={() => onViewModeChange("idea-board")}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                   viewMode === "idea-board"
                     ? "bg-amber-100 text-amber-950 shadow-xs font-bold border border-amber-300"
                     : "text-muted-foreground hover:text-foreground"
@@ -272,21 +279,34 @@ export function KanbanFilterBar({
           )}
         </div>
 
-        {/* Sprint Summary Metrics (Hidden on Idea Board) */}
-        {!isIdeaBoard && (
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <span className="font-medium text-foreground">{totalTasks}</span> root tasks
+        {/* Right Side: Metrics & New Task Button */}
+        <div className="flex items-center gap-3">
+          {!isIdeaBoard && (
+            <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-foreground">{totalTasks}</span> root tasks
+              </div>
+              <span>•</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                  {completedTasks}
+                </span>{" "}
+                completed
+              </div>
             </div>
-            <span>•</span>
-            <div className="flex items-center gap-1.5">
-              <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                {completedTasks}
-              </span>{" "}
-              completed
-            </div>
-          </div>
-        )}
+          )}
+
+          {onNewTask && (
+            <Button
+              onClick={onNewTask}
+              size="sm"
+              className="shadow-sm gap-1.5 h-8 px-3 text-xs font-semibold cursor-pointer shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>New Task</span>
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

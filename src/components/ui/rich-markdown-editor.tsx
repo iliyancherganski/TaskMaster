@@ -59,12 +59,16 @@ interface RichMarkdownEditorProps {
 const TEXT_COLORS = [
   { name: "Default", color: "inherit", label: "Reset" },
   { name: "Red", color: "#ef4444", label: "Red" },
-  { name: "Blue", color: "#3b82f6", label: "Blue" },
-  { name: "Green", color: "#10b981", label: "Green" },
+  { name: "Orange", color: "#ea580c", label: "Orange" },
   { name: "Amber", color: "#f59e0b", label: "Amber" },
+  { name: "Green", color: "#10b981", label: "Green" },
+  { name: "Lime", color: "#84cc16", label: "Lime" },
+  { name: "Teal", color: "#14b8a6", label: "Teal" },
+  { name: "Cyan", color: "#06b6d4", label: "Cyan" },
+  { name: "Blue", color: "#3b82f6", label: "Blue" },
+  { name: "Indigo", color: "#6366f1", label: "Indigo" },
   { name: "Purple", color: "#8b5cf6", label: "Purple" },
   { name: "Pink", color: "#ec4899", label: "Pink" },
-  { name: "Cyan", color: "#06b6d4", label: "Cyan" },
 ];
 
 const HIGHLIGHT_COLORS = [
@@ -74,6 +78,9 @@ const HIGHLIGHT_COLORS = [
   { name: "Blue", bg: "#bfdbfe", text: "#1e3a8a", label: "Blue" },
   { name: "Orange", bg: "#fed7aa", text: "#7c2d12", label: "Orange" },
   { name: "Purple", bg: "#e9d5ff", text: "#581c87", label: "Purple" },
+  { name: "Teal", bg: "#99f6e4", text: "#115e59", label: "Teal" },
+  { name: "Lime", bg: "#d9f99d", text: "#365314", label: "Lime" },
+  { name: "Rose", bg: "#fecdd3", text: "#881337", label: "Rose" },
 ];
 
 const TASK_DOCS_PROMPT = `Act strictly as a Markdown formatter for TaskMaster. Reformat the text into clean, structured Markdown matching the exact specification below.
@@ -813,6 +820,18 @@ export function RichMarkdownEditor({
                   </button>
                 ))}
               </div>
+              <div className="flex items-center justify-between border-t border-border/60 pt-2 mt-2 px-1">
+                <span className="text-[10px] text-muted-foreground font-medium">Custom:</span>
+                <input
+                  type="color"
+                  defaultValue="#ef4444"
+                  onChange={(e) => {
+                    wrapSelection(`<span style="color: ${e.target.value}">`, "</span>", "colored text");
+                  }}
+                  className="h-5 w-6 rounded cursor-pointer border border-border bg-transparent p-0"
+                  title="Choose custom text color"
+                />
+              </div>
             </PopoverContent>
           </Popover>
 
@@ -851,6 +870,22 @@ export function RichMarkdownEditor({
                     {h.label}
                   </button>
                 ))}
+              </div>
+              <div className="flex items-center justify-between border-t border-border/60 pt-2 mt-2 px-1">
+                <span className="text-[10px] text-muted-foreground font-medium">Custom:</span>
+                <input
+                  type="color"
+                  defaultValue="#fef08a"
+                  onChange={(e) => {
+                    wrapSelection(
+                      `<mark style="background-color: ${e.target.value}; color: #000; padding: 1px 4px; border-radius: 4px;">`,
+                      "</mark>",
+                      "highlighted text"
+                    );
+                  }}
+                  className="h-5 w-6 rounded cursor-pointer border border-border bg-transparent p-0"
+                  title="Choose custom highlight background"
+                />
               </div>
             </PopoverContent>
           </Popover>

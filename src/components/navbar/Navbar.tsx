@@ -37,7 +37,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 interface NavbarProps {
   isConfigured: boolean;
   users: User[];
-  onNewTask: () => void;
+  onNewTask?: () => void;
   projects?: Project[];
   selectedProjectId?: string;
   onProjectChange?: (projectId: string) => void;
@@ -79,38 +79,11 @@ export function Navbar({
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-16 items-center justify-between px-4 sm:px-8">
-          {/* Logo & Brand + Top Menu Bar Project Selector */}
-          <div className="flex items-center gap-4 min-w-0">
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="relative flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden shadow-md shadow-primary/20 bg-background border border-border/60">
-                <Image
-                  src="/logo.png"
-                  alt="TaskMaster Logo"
-                  width={36}
-                  height={36}
-                  className="h-full w-full object-contain p-0.5"
-                  priority
-                />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-base tracking-tight text-foreground">
-                    TaskMaster
-                  </span>
-                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                    Pro
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground hidden lg:block">
-                  Team Kanban & Sprint Hub
-                </p>
-              </div>
-            </div>
-
-            {/* Project Selector Filter, Details & Actions in Top Menu Bar */}
+        <div className="flex h-16 items-center justify-between px-4 sm:px-8 gap-4">
+          {/* Left Side: Top Menu Bar Project Selector, Full Title, Description & Actions */}
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {onProjectChange && (
-              <div className="flex items-center gap-2 pl-3 border-l border-border/70 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0">
                 {/* Project Selector Dropdown */}
                 <div className="w-36 sm:w-44 md:w-48 shrink-0">
                   <Select value={selectedProjectId} onValueChange={onProjectChange}>
@@ -139,16 +112,16 @@ export function Navbar({
                   </Select>
                 </div>
 
-                {/* Selected Project Details (Title & Description) & Edit/Delete Buttons */}
+                {/* Selected Project Details: Full Title & Description & Actions */}
                 {currentProject && (
-                  <div className="flex items-center gap-2 min-w-0 pl-2 border-l border-border/60">
-                    <div className="flex flex-col justify-center min-w-0 max-w-[130px] sm:max-w-[180px] lg:max-w-[280px]">
-                      <span className="font-bold text-xs text-foreground truncate leading-tight">
+                  <div className="flex items-center gap-2.5 min-w-0 pl-2.5 border-l border-border/60">
+                    <div className="flex flex-col justify-center min-w-0">
+                      <span className="font-bold text-xs sm:text-sm text-foreground leading-tight whitespace-nowrap">
                         {currentProject.name}
                       </span>
                       {currentProject.description && (
                         <span
-                          className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5 cursor-help"
+                          className="text-[11px] text-muted-foreground leading-tight mt-0.5 line-clamp-1"
                           title={currentProject.description}
                         >
                           {currentProject.description}
@@ -207,7 +180,7 @@ export function Navbar({
 
           {/* Center Navigation Switcher: Tasks & Board vs Educational Materials */}
           {onSectionChange && (
-            <div className="flex items-center p-1 rounded-xl bg-muted/50 border border-border/70 shrink-0 shadow-2xs">
+            <div className="hidden md:flex items-center p-1 rounded-xl bg-muted/50 border border-border/70 shrink-0 shadow-2xs">
               <button
                 type="button"
                 onClick={() => onSectionChange("board")}
@@ -240,28 +213,26 @@ export function Navbar({
             </div>
           )}
 
-          {/* Action Center */}
-          <div className="flex items-center gap-3">
-            {/* Supabase Status Pill */}
+          {/* Right Side: Minimized DB Indicator, Theme Toggle, Team Avatars, and TaskMaster Logo */}
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Minimized Supabase Status Dot (click opens modal details) */}
             <button
+              type="button"
               onClick={() => setIsDbModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+              className="relative flex items-center justify-center h-8 w-8 rounded-full border border-border/70 bg-muted/30 hover:bg-muted/70 transition-colors cursor-pointer"
+              title={
                 isConfigured
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
-                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
-              }`}
-              title="Click to view Supabase connection status & schema"
+                  ? "Supabase Connected • Click to view database details"
+                  : "Local Demo Database • Click for Supabase setup guide"
+              }
+              aria-label="Database Status"
             >
-              <DatabaseIcon className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">
-                {isConfigured ? "Supabase Connected" : "Local Demo Database"}
-              </span>
-              <span className="md:hidden">
-                {isConfigured ? "Connected" : "Demo"}
-              </span>
+              <DatabaseIcon className="h-3.5 w-3.5 text-muted-foreground" />
               <span
-                className={`h-2 w-2 rounded-full ${
-                  isConfigured ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                className={`absolute top-1 right-1 h-2.5 w-2.5 rounded-full ring-2 ring-background ${
+                  isConfigured
+                    ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"
+                    : "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]"
                 }`}
               />
             </button>
@@ -270,7 +241,7 @@ export function Navbar({
             <ThemeToggle />
 
             {/* Team Avatars */}
-            <div className="hidden lg:flex items-center -space-x-1.5 overflow-hidden pl-2 border-l">
+            <div className="hidden xl:flex items-center -space-x-1.5 overflow-hidden pl-1">
               {users.slice(0, 4).map((user) => (
                 <Avatar
                   key={user.id}
@@ -285,11 +256,27 @@ export function Navbar({
               ))}
             </div>
 
-            {/* New Task Button */}
-            <Button onClick={onNewTask} className="shadow-sm gap-1.5 h-9">
-              <Plus className="h-4 w-4" />
-              <span>New Task</span>
-            </Button>
+            {/* TaskMaster Logo & Brand on the Right */}
+            <div className="flex items-center gap-2.5 pl-3 border-l border-border/70 shrink-0">
+              <div className="relative flex h-8 w-8 items-center justify-center rounded-xl overflow-hidden shadow-xs bg-background border border-border/60">
+                <Image
+                  src="/logo.png"
+                  alt="TaskMaster Logo"
+                  width={32}
+                  height={32}
+                  className="h-full w-full object-contain p-0.5"
+                  priority
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-base tracking-tight text-foreground">
+                  TaskMaster
+                </span>
+                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                  Pro
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </header>

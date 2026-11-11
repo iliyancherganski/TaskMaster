@@ -61,6 +61,7 @@ export interface IdeaNote {
   x: number;
   y: number;
   width: number;
+  height?: number;
   rotation: number; // -4 to +4 degrees for organic physical look
   z_index: number;
   created_at: string;

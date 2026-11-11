@@ -224,6 +224,16 @@ export function IdeaBoardView({
     Record<string, { x: number; y: number }> | null
   >(null);
 
+  // Resizing Note State (Requirement 4: stretch sideways & up/down)
+  const [resizingNote, setResizingNote] = useState<{
+    noteId: string;
+    direction: "horizontal" | "vertical" | "both";
+    startX: number;
+    startY: number;
+    initialWidth: number;
+    initialHeight: number;
+  } | null>(null);
+
   // Multi-Selection State (Marquee Box)
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [isMarqueeSelecting, setIsMarqueeSelecting] = useState(false);
@@ -1163,11 +1173,15 @@ export function IdeaBoardView({
         setMarqueeStart(null);
         setMarqueeEnd(null);
       }
+      if (resizingNote) {
+        setResizingNote(null);
+        saveIdeaBoard(projectId, boardData, currentBoardId);
+      }
     };
 
     window.addEventListener("mouseup", handleGlobalMouseUp);
     return () => window.removeEventListener("mouseup", handleGlobalMouseUp);
-  }, [isPanning, draggingNoteId, isMarqueeSelecting, projectId, boardData, currentBoardId, pushUndoSnapshot]);
+  }, [isPanning, draggingNoteId, resizingNote, isMarqueeSelecting, projectId, boardData, currentBoardId, pushUndoSnapshot]);
 
   // Direct clipboard paste (Ctrl+V): pastes images or links without any modal dialogs!
   useEffect(() => {
@@ -1345,6 +1359,26 @@ export function IdeaBoardView({
     }));
   };
 
+  // Initiate Note Resize (Requirement 4: stretch sideways & up/down)
+  const handleStartResizeNote = (
+    noteId: string,
+    direction: "horizontal" | "vertical" | "both",
+    clientX: number,
+    clientY: number,
+    initialWidth: number,
+    initialHeight: number
+  ) => {
+    pushUndoSnapshot(boardData);
+    setResizingNote({
+      noteId,
+      direction,
+      startX: clientX,
+      startY: clientY,
+      initialWidth,
+      initialHeight,
+    });
+  };
+
   // Pushpin Press: Start stretching a string, or tie string if in click-to-connect mode!
   const handlePinMouseDown = (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1462,6 +1496,33 @@ export function IdeaBoardView({
     const boardPos = clientToBoardCoords(e.clientX, e.clientY);
     setMouseBoardPos(boardPos);
 
+    // 0. Resizing Note (Requirement 4: stretch sideways & up/down)
+    if (resizingNote) {
+      const deltaX = Math.round((e.clientX - resizingNote.startX) / zoom);
+      const deltaY = Math.round((e.clientY - resizingNote.startY) / zoom);
+
+      setBoardData((prev) => ({
+        ...prev,
+        notes: prev.notes.map((n) => {
+          if (n.id !== resizingNote.noteId) return n;
+          const newWidth =
+            resizingNote.direction === "vertical"
+              ? n.width
+              : Math.max(180, Math.min(800, resizingNote.initialWidth + deltaX));
+          const newHeight =
+            resizingNote.direction === "horizontal"
+              ? (n.height || 220)
+              : Math.max(120, Math.min(1000, resizingNote.initialHeight + deltaY));
+          return {
+            ...n,
+            width: newWidth,
+            height: newHeight,
+          };
+        }),
+      }));
+      return;
+    }
+
     // 1. Panning the Board Canvas
     if (isPanning) {
       setPan({
@@ -1520,6 +1581,13 @@ export function IdeaBoardView({
 
   // Canvas Mouse Up: Completes note drag, marquee selection, or string drop!
   const handleBoardMouseUp = (e: React.MouseEvent) => {
+    // 0. Finish Resizing Note
+    if (resizingNote) {
+      setResizingNote(null);
+      saveIdeaBoard(projectId, boardData, currentBoardId);
+      return;
+    }
+
     // 1. Finish Panning
     if (isPanning) {
       setIsPanning(false);
@@ -1949,10 +2017,10 @@ export function IdeaBoardView({
         {/* Subtle Warm Vignette Frame Reflection */}
         <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_60px_rgba(120,70,20,0.12)] z-20" />
 
-        {/* Floating Board Hierarchy Breadcrumb Overlay (Requirement 4) */}
+        {/* Floating Board Hierarchy Breadcrumb Overlay (Requirement 4 & 8: Light & Dark theme) */}
         <div
           onMouseDown={(e) => e.stopPropagation()}
-          className="absolute top-3 left-4 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/85 backdrop-blur-md border border-white/20 text-white shadow-xl pointer-events-auto text-xs font-medium"
+          className="absolute top-3 left-4 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/90 text-zinc-900 border border-zinc-200 shadow-md backdrop-blur-md dark:bg-black/85 dark:text-white dark:border-white/20 pointer-events-auto text-xs font-medium"
         >
           {currentBoardId && (
             <button
@@ -1977,7 +2045,7 @@ export function IdeaBoardView({
 
             return (
               <React.Fragment key={item.id ?? "root"}>
-                {idx > 0 && <span className="text-zinc-500 select-none">/</span>}
+                {idx > 0 && <span className="text-zinc-400 dark:text-zinc-500 select-none">/</span>}
                 <button
                   type="button"
                   onMouseDown={(e) => e.stopPropagation()}
@@ -1987,12 +2055,12 @@ export function IdeaBoardView({
                   }}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                     isLast
-                      ? "font-bold text-amber-300 bg-amber-500/25 border border-amber-400/40 shadow-xs"
-                      : "text-zinc-300 hover:text-white hover:bg-white/15"
+                      ? "font-bold text-amber-800 bg-amber-500/20 border border-amber-500/40 shadow-xs dark:text-amber-300 dark:bg-amber-500/25 dark:border-amber-400/40"
+                      : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:text-white dark:hover:bg-white/15"
                   }`}
                   title={isLast ? `Current: ${item.name}` : `Navigate to ${item.name}`}
                 >
-                  <IconComponent className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <IconComponent className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                   <span className="truncate max-w-[130px] sm:max-w-[200px]">{item.name}</span>
                 </button>
               </React.Fragment>
@@ -2193,6 +2261,7 @@ export function IdeaBoardView({
                     onOpenTask={onOpenTask}
                     onOpenSubBoard={(subBoardId) => handleOpenSubBoard(subBoardId)}
                     onDeleteBoard={(subBoardId, boardName) => handleDeleteBoardRequest(subBoardId, boardName)}
+                    onStartResize={handleStartResizeNote}
                   />
                 </div>
               );
@@ -2200,23 +2269,23 @@ export function IdeaBoardView({
           </div>
         </div>
 
-        {/* Minimal Floating Zoom & Board Controls (Bottom Right Pill) */}
-        <div className="absolute bottom-4 right-4 z-40 flex items-center gap-1.5 p-1 rounded-xl bg-black/80 backdrop-blur-md border border-white/20 text-white shadow-xl pointer-events-auto">
+        {/* Minimal Floating Zoom & Board Controls (Requirement 8: Light & Dark theme) */}
+        <div className="absolute bottom-4 right-4 z-40 flex items-center gap-1.5 p-1 rounded-xl bg-white/90 text-zinc-800 border border-zinc-200/90 shadow-xl backdrop-blur-md dark:bg-black/80 dark:text-white dark:border-white/20 pointer-events-auto">
           {/* Fit & Center View on Notes (Shift + F) */}
           <button
             type="button"
             onClick={handleFitToContent}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/25 hover:bg-amber-500/40 border border-amber-400/40 text-amber-300 hover:text-amber-100 text-xs font-semibold cursor-pointer transition-all active:scale-95"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-800 hover:text-amber-950 dark:bg-amber-500/25 dark:hover:bg-amber-500/40 dark:border-amber-400/40 dark:text-amber-300 dark:hover:text-amber-100 text-xs font-semibold cursor-pointer transition-all active:scale-95"
             title="Focus & Fit to Notes / Tasks (Shift + F)"
           >
             <Focus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Fit (Shift+F)</span>
           </button>
-          <div className="h-4 w-px bg-white/20 mx-0.5" />
+          <div className="h-4 w-px bg-zinc-300 dark:bg-white/20 mx-0.5" />
           <button
             type="button"
             onClick={() => setZoom((prev) => Math.max(0.3, +(prev - 0.15).toFixed(2)))}
-            className="p-1.5 rounded-lg hover:bg-white/20 text-zinc-300 hover:text-white cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 dark:hover:bg-white/20 dark:text-zinc-300 dark:hover:text-white cursor-pointer transition-colors"
             title="Zoom Out (or scroll wheel)"
           >
             <ZoomOut className="h-4 w-4" />
@@ -2227,7 +2296,7 @@ export function IdeaBoardView({
               setZoom(1);
               setPan({ x: 0, y: 0 });
             }}
-            className="px-2 py-0.5 rounded-lg hover:bg-white/20 text-xs font-mono font-bold cursor-pointer"
+            className="px-2 py-0.5 rounded-lg hover:bg-zinc-100 text-zinc-800 hover:text-zinc-950 dark:hover:bg-white/20 dark:text-white text-xs font-mono font-bold cursor-pointer transition-colors"
             title="Reset Zoom & Pan (100%)"
           >
             {Math.round(zoom * 100)}%
@@ -2235,20 +2304,20 @@ export function IdeaBoardView({
           <button
             type="button"
             onClick={() => setZoom((prev) => Math.min(2.5, +(prev + 0.15).toFixed(2)))}
-            className="p-1.5 rounded-lg hover:bg-white/20 text-zinc-300 hover:text-white cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 dark:hover:bg-white/20 dark:text-zinc-300 dark:hover:text-white cursor-pointer transition-colors"
             title="Zoom In (or scroll wheel)"
           >
             <ZoomIn className="h-4 w-4" />
           </button>
-          <div className="h-4 w-px bg-white/20 mx-0.5" />
+          <div className="h-4 w-px bg-zinc-300 dark:bg-white/20 mx-0.5" />
           <button
             type="button"
             onClick={handleUndo}
             disabled={undoStack.length === 0}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
               undoStack.length === 0
-                ? "opacity-30 cursor-not-allowed text-zinc-500"
-                : "hover:bg-white/20 text-zinc-300 hover:text-white"
+                ? "opacity-30 cursor-not-allowed text-zinc-400 dark:text-zinc-500"
+                : "hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 dark:hover:bg-white/20 dark:text-zinc-300 dark:hover:text-white"
             }`}
             title="Undo Board Action (Ctrl+Z)"
           >
@@ -2260,18 +2329,18 @@ export function IdeaBoardView({
             disabled={redoStack.length === 0}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
               redoStack.length === 0
-                ? "opacity-30 cursor-not-allowed text-zinc-500"
-                : "hover:bg-white/20 text-zinc-300 hover:text-white"
+                ? "opacity-30 cursor-not-allowed text-zinc-400 dark:text-zinc-500"
+                : "hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 dark:hover:bg-white/20 dark:text-zinc-300 dark:hover:text-white"
             }`}
             title="Redo Board Action (Ctrl+Y or Ctrl+Shift+Z)"
           >
             <Redo2 className="h-3.5 w-3.5" />
           </button>
-          <div className="h-4 w-px bg-white/20 mx-0.5" />
+          <div className="h-4 w-px bg-zinc-300 dark:bg-white/20 mx-0.5" />
           <button
             type="button"
             onClick={handleResetBoard}
-            className="p-1.5 rounded-lg hover:bg-white/20 text-zinc-300 hover:text-white cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 dark:hover:bg-white/20 dark:text-zinc-300 dark:hover:text-white cursor-pointer transition-colors"
             title="Reset this project's board to initial layout"
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -2279,7 +2348,7 @@ export function IdeaBoardView({
           <button
             type="button"
             onClick={() => setShowHelp(!showHelp)}
-            className="p-1.5 rounded-lg hover:bg-white/20 text-zinc-300 hover:text-white cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 dark:hover:bg-white/20 dark:text-zinc-300 dark:hover:text-white cursor-pointer transition-colors"
             title="Gestures & Shortcuts Guide"
           >
             <HelpCircle className="h-3.5 w-3.5" />
@@ -2288,38 +2357,38 @@ export function IdeaBoardView({
 
         {/* Floating Help Modal / Tooltip */}
         {showHelp && (
-          <div className="absolute bottom-16 right-4 z-40 w-84 p-4 rounded-xl bg-black/95 backdrop-blur-md border border-amber-400/40 text-white shadow-2xl text-xs space-y-2.5 animate-in fade-in slide-in-from-bottom-2 pointer-events-auto">
-            <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
-              <span className="font-bold text-amber-300 flex items-center gap-1.5 text-sm">
+          <div className="absolute bottom-16 right-4 z-40 w-84 p-4 rounded-xl bg-white/95 text-zinc-900 border border-zinc-200 shadow-2xl backdrop-blur-md dark:bg-black/95 dark:text-white dark:border-amber-400/40 text-xs space-y-2.5 animate-in fade-in slide-in-from-bottom-2 pointer-events-auto">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-white/10 pb-1.5">
+              <span className="font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5 text-sm">
                 <span>📌</span>
                 <span>Idea Board Controls &amp; Shortcuts</span>
               </span>
               <button
                 type="button"
                 onClick={() => setShowHelp(false)}
-                className="text-zinc-400 hover:text-white cursor-pointer"
+                className="text-zinc-400 hover:text-zinc-700 dark:hover:text-white cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
-            <ul className="space-y-2 text-zinc-300 text-[11px] leading-relaxed">
+            <ul className="space-y-2 text-zinc-600 dark:text-zinc-300 text-[11px] leading-relaxed">
               <li>
-                <strong className="text-amber-200">↩️ Undo &amp; Redo:</strong> Press <kbd className="bg-white/10 px-1 py-0.5 rounded">Ctrl + Z</kbd> to undo board moves, creates, deletes, and connections. Press <kbd className="bg-white/10 px-1 py-0.5 rounded">Ctrl + Y</kbd> or <kbd className="bg-white/10 px-1 py-0.5 rounded">Ctrl + Shift + Z</kbd> to redo. When typing inside text fields or note descriptions, your text undo works independently without affecting the board!
+                <strong className="text-amber-800 dark:text-amber-200">↩️ Undo &amp; Redo:</strong> Press <kbd className="bg-zinc-100 border dark:bg-white/10 px-1 py-0.5 rounded">Ctrl + Z</kbd> to undo board moves, creates, deletes, and connections. Press <kbd className="bg-zinc-100 border dark:bg-white/10 px-1 py-0.5 rounded">Ctrl + Y</kbd> or <kbd className="bg-zinc-100 border dark:bg-white/10 px-1 py-0.5 rounded">Ctrl + Shift + Z</kbd> to redo. When typing inside text fields or note descriptions, your text undo works independently without affecting the board!
               </li>
               <li>
-                <strong className="text-amber-200">🖱️ Pan &amp; Zoom:</strong> Drag with <kbd className="bg-white/10 px-1 py-0.5 rounded">Middle Mouse</kbd> or <kbd className="bg-white/10 px-1 py-0.5 rounded">Ctrl + Left Click</kbd> to pan. Scroll the mouse wheel to zoom directly into wherever your cursor is.
+                <strong className="text-amber-800 dark:text-amber-200">🖱️ Pan &amp; Zoom:</strong> Drag with <kbd className="bg-zinc-100 border dark:bg-white/10 px-1 py-0.5 rounded">Middle Mouse</kbd> or <kbd className="bg-zinc-100 border dark:bg-white/10 px-1 py-0.5 rounded">Ctrl + Left Click</kbd> to pan. Scroll the mouse wheel to zoom directly into wherever your cursor is.
               </li>
               <li>
-                <strong className="text-amber-200">📦 Multi-Select:</strong> Drag a box on the corkboard background to select multiple notes. Drag any selected note to move the whole group together! Press <kbd className="bg-white/10 px-1 py-0.5 rounded">Delete</kbd> to remove selected notes.
+                <strong className="text-amber-800 dark:text-amber-200">📦 Multi-Select:</strong> Drag a box on the corkboard background to select multiple notes. Drag any selected note to move the whole group together! Press <kbd className="bg-zinc-100 border dark:bg-white/10 px-1 py-0.5 rounded">Delete</kbd> to remove selected notes.
               </li>
               <li>
-                <strong className="text-amber-200">🧶 Strings &amp; Ideas:</strong> Click and hold down any note&apos;s pushpin, then drag the string. Drop on another pin to tie them, or drop on empty corkboard to spawn a connected note!
+                <strong className="text-amber-800 dark:text-amber-200">🧶 Strings &amp; Ideas:</strong> Click and hold down any note&apos;s pushpin, then drag the string. Drop on another pin to tie them, or drop on empty corkboard to spawn a connected note!
               </li>
               <li>
-                <strong className="text-amber-200">🖼️ Instant Drag &amp; Drop:</strong> Drag images, videos, or web links directly onto the board or press <kbd className="bg-white/10 px-1 py-0.5 rounded">Ctrl + V</kbd> to paste immediately without opening any modals.
+                <strong className="text-amber-800 dark:text-amber-200">🖼️ Instant Drag &amp; Drop:</strong> Drag images, videos, or web links directly onto the board or press <kbd className="bg-zinc-100 border dark:bg-white/10 px-1 py-0.5 rounded">Ctrl + V</kbd> to paste immediately without opening any modals.
               </li>
               <li>
-                <strong className="text-amber-200">📝 Edit Notes:</strong> Double-click any note card or click the pencil icon to edit formatting, content, or paper colors with full rich-text Markdown and dedicated Undo/Redo.
+                <strong className="text-amber-800 dark:text-amber-200">📝 Edit Notes:</strong> Double-click any note card or click the pencil icon to edit formatting, content, or paper colors with full rich-text Markdown and dedicated Undo/Redo.
               </li>
             </ul>
           </div>
