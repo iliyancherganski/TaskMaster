@@ -1,218 +1,246 @@
 # TaskMaster 🚀
 
-A production-ready, high-performance single-page task management and Kanban application built with **Next.js 14 (App Router)**, **TypeScript**, **Tailwind CSS**, and **Supabase (PostgreSQL, Storage, & RLS)**.
+A full-featured, single-page **Project Management, Hierarchical Kanban, Detective Idea Board, and Learning Hub** application built with **Next.js 14 (App Router)**, **TypeScript**, **Tailwind CSS**, and **Supabase (PostgreSQL, Storage, & RLS)**.
 
-TaskMaster is designed for high-velocity teams and creative studios — featuring hierarchical subtasks, deep folder navigation, software stack tagging (with transparent PNG/SVG icons), deadline alerts, and seamless offline/demo resilience.
+TaskMaster is crafted for creative studios, product teams, and engineering workflows — combining recursive subtask trees, an interactive corkboard Idea Board with nested sub-boards and yarn connections, software stack tagging, and zero-config offline demo resilience.
+
+---
+
+## 📸 Application Showcase ("Nova Sparkling Drink — Brand Launch")
+
+### 1. Kanban Board with Linked Idea Board Indicators & Software Stack
+Tasks display their assigned software icons (Blender, Figma, Photoshop, Illustrator, VS Code, Unreal Engine), subtask completion progress, deadline badges, and a glowing **💡 Lightbulb Indicator** in the top-left corner whenever a task is linked to the Idea Board.
+
+![Kanban Board View](public/screenshots/kanban-board.png)
+
+---
+
+### 2. Interactive Corkboard Idea Board & Nested Sub-Boards
+A full-bleed spatial canvas (`Middle-Click` or `Ctrl + Left Drag` to pan, cursor-centered `Scroll Wheel` zoom, `Shift + F` to fit all notes, marquee box multi-selection). Pin Markdown notes, images, videos, links, linked Kanban tasks, and **nested sub-idea boards** connected by realistic detective yarn strings that render on top of notes and dynamically become semi-transparent over any note you hover on.
+
+![Idea Board Main View](public/screenshots/idea-board-main.png)
+
+---
+
+### 3. Nested Sub-Idea Board with Hierarchy Breadcrumb Navigation
+Double-clicking or clicking **Open Board** on any sub-board card drills into a dedicated child board (e.g., `Nova Sparkling Drink — Brand Launch / Tropical Citrus Can`) with instant breadcrumb navigation and a one-click `← Root` return button.
+
+![Nested Sub-Idea Board View](public/screenshots/idea-board-subboard.png)
+
+---
+
+### 4. Rich Task Modal & Multi-Level Subtask Hierarchy
+Auto-focuses the title field on creation, supports rich Markdown descriptions with inline attachment previews, interactive subtask creation and drag-reordering, software tool tagging, and full breadcrumb navigation across parent and child tasks.
+
+![Task Modal & Subtasks View](public/screenshots/task-modal-subtasks.png)
+
+---
+
+### 5. Hierarchical Folder Explorer View
+Browse projects, root tasks, and deeply nested subtasks like a file-system directory tree (`📁 Project / 📁 Task / 📄 Subtask`) with instant status updates and drill-down breadcrumbs.
+
+![Folder Explorer View](public/screenshots/folder-explorer.png)
 
 ---
 
 ## 📑 Table of Contents
 
-- [Features](#-features)
+- [Application Showcase](#-application-showcase-nova-sparkling-drink--brand-launch)
+- [Core Functionalities](#-core-functionalities)
 - [Tech Stack](#-tech-stack)
-- [Prerequisites](#-prerequisites)
-- [Step-by-Step Local Setup](#-step-by-step-local-setup)
-  - [1. Clone the Repository](#1-clone-the-repository)
-  - [2. Install Dependencies](#2-install-dependencies)
-  - [3. Supabase Project Setup](#3-supabase-project-setup)
-  - [4. Execute Database Schema & Storage Setup](#4-execute-database-schema--storage-setup)
-  - [5. Configure Environment Variables](#5-configure-environment-variables)
-  - [6. Start the Development Server](#6-start-the-development-server)
-- [Demo Mode vs. Live Supabase Mode](#-demo-mode-vs-live-supabase-mode)
-- [Available npm Scripts](#-available-npm-scripts)
+- [How to Run Locally](#-how-to-run-locally)
+- [How to Connect to Supabase (Database & Storage)](#-how-to-connect-to-supabase-database--storage)
+- [How to Host & Deploy on Vercel](#-how-to-host--deploy-on-vercel)
+- [Keyboard Shortcuts & Canvas Controls](#-keyboard-shortcuts--canvas-controls)
 - [Database Schema & Architecture](#-database-schema--architecture)
 - [Project Directory Structure](#-project-directory-structure)
 - [Troubleshooting & FAQs](#-troubleshooting--faqs)
 
 ---
 
-## ✨ Features
+## ✨ Core Functionalities
 
-- 📋 **Kanban Board with Drag & Drop**: Smooth, collision-detected card movement powered by `@dnd-kit` with instant optimistic UI updates.
-- 🎨 **Column Customization**: Add, rename, reorder, or recolor columns with a 16-color palette or custom hex picker.
-- 📂 **Hierarchical Tasks & Folder Explorer**:
-  - Subtasks are full-fledged tasks that can have their own assignees, types, deadline dates, and child subtasks.
-  - Interactive directory tree explorer with breadcrumbs (`📁 Project / 📁 Task / 📄 Subtask`) and instant jump navigation.
-- 💻 **Software Tagging & Visual Stack**:
-  - Tag tasks with software tools used in production (e.g., Blender, Figma, Photoshop, Unreal Engine, VS Code).
-  - Multi-column icon stack on Kanban cards with transparency grid preview.
-  - Software manager modal with transparent PNG/JPG/SVG upload support and delete confirmation.
-- ⏰ **Deadline Tracking & Overdue Badging**:
-  - Track **Date Posted** (`created_at`), **Date Edited** (`updated_at`), and **Deadline** (`due_date`).
-  - Automatic red warning tags when a task deadline has passed.
-- 🔗 **Deep Linking & URL Routing**:
-  - Open and share tasks directly via URL parameters (e.g. `http://localhost:3000/?task=<id>`).
-  - Supports browser Back / Forward history navigation and persistent project selection.
-- 🌓 **Dark & Light Mode**: Instant theme switching with clean contrast and persistent local storage preference.
-- 📎 **Drag-and-Drop File Uploads**: Upload attachments directly to Supabase Storage with preview and download links.
+### 📋 Kanban Board & Task Management
+- **Drag & Drop Workflow**: Smooth, collision-detected card and column reordering powered by `@dnd-kit` with optimistic UI updates.
+- **Customizable Columns**: Create, rename, reorder, or recolor status columns using a 16-color palette or custom hex picker.
+- **Recursive Subtasks**: Subtasks are full-fledged tasks with their own assignees, software tags, deadlines, attachments, and nested child subtasks.
+- **Software Stack Tagging**: Tag tasks with production tools (Blender, Figma, Photoshop, Illustrator, Unreal Engine, VS Code, or custom uploaded transparent PNG/SVG icons).
+- **Bidirectional Idea Board Linking**: Tasks linked to an Idea Board display a clickable **💡 lightbulb badge** on the Kanban card that jumps directly to the Idea Board and highlights the linked note.
+- **Auto-Focused Creation**: Creating a new task, note, or sub-board automatically places the typing cursor in the title field for immediate keyboard entry.
+
+### 📌 Detective Corkboard Idea Board
+- **Full-Bleed Interactive Canvas**:
+  - **Pan**: Hold `Middle Mouse Button` or `Ctrl + Left Click` and drag.
+  - **Cursor-Centered Zoom**: Scroll the mouse wheel to zoom smoothly toward the exact cursor position.
+  - **Fit to View (`Shift + F`)**: Automatically centers and scales the viewport to frame all notes and tasks on the current board.
+  - **Marquee Box Selection**: Drag on the empty corkboard background to select multiple notes and move them together as a group.
+- **Rich Note Types**:
+  - **Markdown Notes**: Checklists, headings, blockquotes, and code blocks.
+  - **Direct Drag & Drop Media**: Drag and drop images or web links directly from your desktop or browser onto the board to pin them immediately without modal popups.
+  - **Linked Kanban Tasks (`+ Link Task`)**: Pin existing project tasks onto the corkboard with live status badges and a one-click **Open Task** button.
+  - **Nested Idea Sub-Boards (`+ New Board`)**: Organize complex projects into nested sub-boards (e.g., *Main Brand Board* &rarr; *Tropical Citrus Can*, *Midnight Berry Can*, *Botanical Ginger Can*), displayed as square cards with top-center icons, titles, floating breadcrumb path navigation, and confirmation dialogs before deletion.
+- **Detective Yarn Connections**:
+  - Click a pushpin and click a target pushpin (or drag between pins) to tie a colored yarn string (`Detective Red`, `Natural Twine`, `Electric Blue`, `Forest Green`, `Golden Yarn`, `Neon Pink`).
+  - Press `Esc` at any time to cancel an active connection string.
+  - **Smart Hover Semi-Transparency**: Connection strings render visually **on top of** notes by default, and dynamically fade to semi-transparent over the exact region of any note you hover on so text and media underneath remain 100% readable and interactive.
+- **Clipboard & History**:
+  - **Undo / Redo (`Ctrl + Z` / `Ctrl + Y`)**: Works seamlessly on canvas actions (moving, creating, deleting, connecting notes) while preserving native text undo inside input fields and editors.
+  - **Copy / Paste (`Ctrl + C` / `Ctrl + V`) & Duplicate (`Shift + D`)**: Quickly duplicate single or multiple selected notes.
+
+### 📂 Folder Explorer & 🎓 Learning Hub
+- **Folder Explorer View**: Navigate tasks and nested subtasks in a clean two-pane directory tree.
+- **Education / Learning Hub**: Organize study groups, visual node connections, and tagged learning resources (tutorials, documentation, videos) linked directly to tasks.
+- **Deep Linking**: Share direct URLs to any project (`?project=<id>`), view (`?view=ideas` or `?view=folder`), or specific task (`?task=<id>`).
 
 ---
 
 ## 🛠 Tech Stack
 
-- **Framework**: [Next.js 14](https://nextjs.org/) (App Router, Server Actions, React Server Components)
-- **Language**: [TypeScript](https://www.typescriptlang.org/) (Strict type checking)
-- **Backend / Database**: [Supabase](https://supabase.com/) (PostgreSQL 15, Row Level Security, Storage)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **UI Components**: [shadcn/ui](https://ui.shadcn.com/) / [Radix UI](https://www.radix-ui.com/)
-- **Drag & Drop**: [`@dnd-kit/core`](https://dndkit.com/), `@dnd-kit/sortable`
+- **Framework**: [Next.js 14](https://nextjs.org/) (App Router)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Database & Storage**: [Supabase](https://supabase.com/) (PostgreSQL 15, Row Level Security, Storage Buckets)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) + `tailwindcss-animate`
+- **UI Primitives**: [Radix UI](https://www.radix-ui.com/) / [shadcn/ui](https://ui.shadcn.com/)
+- **Drag & Drop**: [`@dnd-kit/core`](https://dndkit.com/) & `@dnd-kit/sortable`
+- **Markdown**: `react-markdown`, `remark-gfm`, `rehype-raw`
 - **Icons**: [Lucide React](https://lucide.dev/)
 
 ---
 
-## 📦 Prerequisites
+## 💻 How to Run Locally
 
-Before running the application locally, ensure you have the following installed:
+### Prerequisites
+- **Node.js**: `v18.17+` (`v20+` LTS recommended)
+- **npm** (or `pnpm` / `yarn`)
+- **Git**
 
-1. **Node.js**: `v18.17.0` or higher (Node `v20.x` LTS recommended).  
-   Verify by running:
-   ```bash
-   node -v
-   ```
-2. **npm** (comes with Node.js) or **pnpm** / **yarn**:
-   ```bash
-   npm -v
-   ```
-3. **Git**:
-   ```bash
-   git --version
-   ```
-4. **Supabase Account**: A free account at [supabase.com](https://supabase.com/).
-
----
-
-## 🚀 Step-by-Step Local Setup
-
-### 1. Clone the Repository
-
-Open your terminal or PowerShell and clone the project:
-
+### Step 1: Clone the Repository
 ```bash
 git clone https://github.com/your-username/TaskMaster.git
 cd TaskMaster
 ```
 
----
-
-### 2. Install Dependencies
-
-Install all required npm packages:
-
+### Step 2: Install Dependencies
 ```bash
 npm install
 ```
 
-> **Windows Note**: If you encounter file lock or permission errors during install, make sure no other terminal is locking the `node_modules` directory and rerun `npm install`.
-
----
-
-### 3. Supabase Project Setup
-
-1. Log into your [Supabase Dashboard](https://supabase.com/dashboard).
-2. Click **"New Project"**.
-3. Choose your Organization, enter a **Project Name** (e.g., `TaskMaster`), set a secure **Database Password**, and select the region closest to you.
-4. Click **"Create new project"** and wait ~1–2 minutes for the database to provision.
-
----
-
-### 4. Execute Database Schema & Storage Setup
-
-1. In your Supabase project dashboard, open the **SQL Editor** from the left-hand navigation (icon looks like `>_`).
-2. Click **"New query"**.
-3. Open the file [`supabase/schema.sql`](supabase/schema.sql) from this repository in your code editor.
-4. Copy the entire contents of `supabase/schema.sql`, paste it into the Supabase SQL Editor, and click **Run** (or press `Ctrl` + `Enter`).
-
-#### What this migration executes:
-- ✅ **Tables**: `Users`, `Skills`, `UsersSkills`, `Projects`, `Status`, `TaskTypes`, `Tasks`, `TasksUsers`, `TaskTypes_Tasks`, `Resources`, `Files`, `Softwares`, `Tasks_Softwares`.
-- ✅ **Foreign Keys & Cascades**: Deleting parent tasks cascades to subtasks, resources, and junction associations.
-- ✅ **Indexes**: High-performance indexes on `status_id`, `Project_id`, `Task_Parent_Id`, and junction keys.
-- ✅ **Row Level Security (RLS)**: Enables RLS with permissive team access policies.
-- ✅ **Storage Bucket**: Creates the `task-attachments` public bucket for file and image uploads.
-- ✅ **Default Seed Data**:
-  - Statuses: *Backlog*, *To Do*, *In Progress*, *In Review*, *Done*
-  - Task Types: *Feature*, *Bug*, *Improvement*, *Design*, *Documentation*
-  - Initial Softwares: *Blender*, *Figma*, *Photoshop*, *VS Code*, *Unreal Engine*, *Illustrator*
-  - Initial Project: *TaskMaster Sprint 1*
-
----
-
-### 5. Configure Environment Variables
-
-1. In the root directory of the project, create a new file named `.env.local` by copying `.env.example`:
-
-   **On Windows (PowerShell):**
-   ```powershell
-   Copy-Item .env.example .env.local
-   ```
-
-   **On macOS / Linux:**
-   ```bash
-   cp .env.example .env.local
-   ```
-
-2. Retrieve your Supabase API credentials:
-   - In your Supabase Dashboard, go to **Project Settings** (gear icon) &rarr; **API**.
-   - Copy the **Project URL** (e.g., `https://xyzcompany.supabase.co`).
-   - Copy the **Project API Keys** &rarr; `anon` `public` key.
-
-3. Open `.env.local` and paste your credentials:
-
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-   ```
-
-> ⚠️ **Important**: Never commit `.env.local` to Git. It is already included in `.gitignore`.
-
----
-
-### 6. Start the Development Server
-
-Start the Next.js local development server:
+### Step 3: Run in Instant Demo Mode (Zero Configuration Required)
+TaskMaster includes a built-in **Demo & Local Persistence Mode** pre-loaded with the **"Nova Sparkling Drink — Brand Launch"** showcase project, tasks, subtasks, and nested Idea Boards. You can run it immediately without setting up a database:
 
 ```bash
 npm run dev
 ```
 
-Once started, open your web browser and navigate to:
-```
-http://localhost:3000
-```
+Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
-## 💡 Demo Mode vs. Live Supabase Mode
+## 🗄 How to Connect to Supabase (Database & Storage)
 
-TaskMaster comes with a built-in **zero-config Demo Mode**:
+To persist all projects, tasks, subtasks, file attachments, and Idea Boards in the cloud with PostgreSQL and Supabase Storage, follow these steps:
 
-| Feature | Connected Mode (Supabase Configured) | Demo Mode (Missing/Invalid Supabase Keys) |
+### Step 1: Create a Supabase Project
+1. Sign in to the [Supabase Dashboard](https://supabase.com/dashboard).
+2. Click **"New Project"**, choose your organization, enter a project name (e.g., `TaskMaster`), set a strong database password, and select your closest region.
+3. Wait ~1–2 minutes for your PostgreSQL database to finish provisioning.
+
+### Step 2: Run the Database Schema & Idea Board Migrations
+1. In your Supabase Dashboard, open the **SQL Editor** from the left sidebar (`>_` icon) and click **"New query"**.
+2. **Core Schema**:
+   - Open [`supabase/schema.sql`](supabase/schema.sql) from this repository.
+   - Copy its entire contents into the Supabase SQL Editor and click **Run**.
+   - This creates all core tables (`Projects`, `Status`, `Tasks`, `TaskTypes`, `Users`, `Softwares`, `Resources`, `Files`, `StudyGroups`, `EducationalMaterials`), foreign-key cascades, RLS policies, and the `task-attachments` storage bucket.
+3. **Idea Board & Nested Sub-Boards Schema**:
+   - Click **"New query"** in the SQL Editor again.
+   - Open [`supabase/idea_board_migration.sql`](supabase/idea_board_migration.sql) from this repository.
+   - Copy its entire contents into the SQL Editor and click **Run**.
+   - This creates `IdeaBoards` (with recursive `parent_board_id` for nested sub-boards), `IdeaNotes` (with `board_id`, `sub_board_id`, and `task_id`), `IdeaStrings`, and the `idea-attachments` storage bucket.
+
+### Step 3: Configure `.env.local`
+1. Copy the example environment file in the project root:
+   ```bash
+   # macOS / Linux
+   cp .env.example .env.local
+
+   # Windows (PowerShell)
+   Copy-Item .env.example .env.local
+   ```
+2. In your Supabase Dashboard, navigate to **Project Settings (⚙️) &rarr; API**.
+3. Copy your **Project URL** and **`anon` `public` API key** into `.env.local`:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   ```
+4. Restart the development server:
+   ```bash
+   npm run dev
+   ```
+   The top navigation bar will switch from **Demo Mode** to **Connected** and sync your boards with Supabase!
+
+---
+
+## 🌐 How to Host & Deploy on Vercel
+
+Deploying TaskMaster to production on [Vercel](https://vercel.com/) takes less than 2 minutes:
+
+### Step 1: Push Your Repository to GitHub
+Ensure your latest code is pushed to a GitHub, GitLab, or Bitbucket repository:
+```bash
+git add .
+git commit -m "Ready for Vercel deployment"
+git push origin main
+```
+
+### Step 2: Import the Project in Vercel
+1. Go to [vercel.com/new](https://vercel.com/new) and sign in with your GitHub account.
+2. Click **"Import"** next to your `TaskMaster` repository.
+3. Vercel will automatically detect **Next.js** as the framework preset:
+   - **Build Command**: `next build` (default)
+   - **Output Directory**: `.next` (default)
+   - **Install Command**: `npm install` (default)
+
+### Step 3: Add Environment Variables in Vercel
+Expand the **"Environment Variables"** section before deploying (or in **Project Settings &rarr; Environment Variables**) and add your Supabase credentials:
+
+| Name | Value | Environment |
 |---|---|---|
-| **Storage** | Persisted directly in PostgreSQL & Supabase Storage | Kept in-memory in server/client session |
-| **Realtime** | Fully database-backed | Pre-seeded with interactive tasks, subtasks & softwares |
-| **Setup Needed** | Supabase Project + Schema migration | Works immediately out-of-the-box (`npm run dev`) |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://your-project-ref.supabase.co` | Production, Preview, Development |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` | Production, Preview, Development |
 
-If `.env.local` is empty or credentials are not yet configured, the app automatically falls back to **Demo Mode** so you can preview all UI workflows without errors.
+*(Note: If you deploy without setting these variables, the Vercel deployment will still build and run cleanly in interactive Demo Mode).*
 
----
-
-## 📜 Available npm Scripts
-
-| Command | Description |
-|---|---|
-| `npm run dev` | Runs the Next.js development server at `http://localhost:3000` with hot-module reloading. |
-| `npm run build` | Runs full TypeScript validation and creates an optimized production bundle. |
-| `npm run start` | Starts the production server (run `npm run build` first). |
-| `npm run lint` | Runs Next.js ESLint checks to enforce code quality. |
+### Step 4: Deploy
+1. Click **"Deploy"**.
+2. Wait ~45–60 seconds for Vercel to build and optimize the Next.js bundle.
+3. Once finished, Vercel will provide your live production URL (e.g., `https://taskmaster-yourname.vercel.app`).
 
 ---
 
-## 🗄 Database Schema & Architecture
+## ⌨️ Keyboard Shortcuts & Canvas Controls
 
-The database follows a relational architecture optimized for speed and recursive hierarchies:
+| Shortcut / Action | Context | Description |
+|---|---|---|
+| `Middle Mouse Drag` or `Ctrl + Left Drag` | Idea Board | Pan smoothly around the corkboard canvas |
+| `Mouse Wheel` | Idea Board | Zoom in/out centered directly on the mouse cursor |
+| `Shift + F` | Idea Board | Fit and center the viewport on all notes/tasks |
+| `Left Drag on Background` | Idea Board | Box-select (marquee) multiple notes at once |
+| `Ctrl + C` / `Ctrl + V` | Idea Board | Copy and paste selected note(s) |
+| `Shift + D` | Idea Board | Instantly duplicate selected note(s) |
+| `Ctrl + Z` / `Ctrl + Y` | Idea Board & Text Fields | Undo / Redo canvas changes (or text edits when focused in an input) |
+| `Delete` / `Backspace` | Idea Board | Delete selected note(s) or selected yarn connection |
+| `Esc` | Idea Board | Cancel active pin connection string or deselect |
+| `Double-Click Corkboard` | Idea Board | Open modal to pin a new note at cursor coordinates |
+| `Double-Click Sub-Board` | Idea Board | Open the nested sub-idea board |
+
+---
+
+## 🏗 Database Schema & Architecture
 
 ```mermaid
 erDiagram
     Projects ||--o{ Tasks : "contains"
+    Projects ||--o{ IdeaBoards : "owns"
     Status ||--o{ Tasks : "categorizes"
     Tasks ||--o{ Tasks : "subtask of (Task_Parent_Id)"
     Tasks ||--o{ TasksUsers : "assigned via"
@@ -223,16 +251,11 @@ erDiagram
     Softwares ||--o{ Tasks_Softwares : "cataloged in"
     Tasks ||--o{ Resources : "attaches"
     Resources ||--o{ Files : "links to storage"
+    IdeaBoards ||--o{ IdeaBoards : "nested in (parent_board_id)"
+    IdeaBoards ||--o{ IdeaNotes : "contains (board_id)"
+    Tasks ||--o{ IdeaNotes : "linked via (task_id)"
+    IdeaNotes ||--o{ IdeaStrings : "connected via"
 ```
-
-### Key Tables Breakdown
-
-- **`Tasks`**: Primary table containing `id`, `name`, `description`, `status_id`, `Task_Parent_Id` (for infinite nesting), `Project_id`, `position`, `due_date`, `created_at`, `updated_at`.
-- **`Softwares`**: Library of software tools with `name` and transparent `icon_url`.
-- **`Tasks_Softwares`**: Many-to-many junction table between `Tasks` and `Softwares`.
-- **`Status`**: Columns on the Kanban board with `name`, `color`, `position`.
-- **`TaskTypes`**: Labels/tags (Bug, Feature, Design, etc.) with custom accent colors.
-- **`Resources` & `Files`**: Metadata and URLs pointing to files in the Supabase Storage bucket.
 
 ---
 
@@ -240,56 +263,56 @@ erDiagram
 
 ```text
 TaskMaster/
-├── public/                 # Static assets
+├── public/
+│   ├── logo.png                        # Application brand logo
+│   └── screenshots/                    # Application showcase screenshots
+│       ├── kanban-board.png
+│       ├── idea-board-main.png
+│       ├── idea-board-subboard.png
+│       ├── task-modal-subtasks.png
+│       └── folder-explorer.png
 ├── src/
-│   ├── app/                # Next.js App Router
-│   │   ├── globals.css     # Global styles & Tailwind layers
-│   │   ├── layout.tsx      # Root HTML structure and theme provider
-│   │   └── page.tsx        # Main single-page application & Kanban view
-│   ├── components/         # Reusable React UI components
-│   │   ├── explorer/       # Hierarchical Folder Tree & Directory view
-│   │   ├── kanban/         # KanbanBoard, KanbanColumn, KanbanCard
-│   │   ├── layout/         # Header, Project Selector, Theme Toggle
-│   │   ├── tasks/          # TaskModal, TaskBreadcrumbs, FileUploader
-│   │   └── ui/             # shadcn/ui components (Dialog, Button, Tooltip, etc.)
+│   ├── app/
+│   │   ├── globals.css                 # Tailwind CSS & custom scrollbar styles
+│   │   ├── layout.tsx                  # Root layout & ThemeProvider
+│   │   └── page.tsx                    # Main SPA controller & URL router
+│   ├── components/
+│   │   ├── education/                  # Learning Hub & Study Groups views
+│   │   ├── explorer/                   # Hierarchical Folder Explorer view
+│   │   ├── filters/                    # Project, Assignee, Tag & Idea Board toolbar
+│   │   ├── idea-board/                 # Corkboard Canvas, Notes, Yarn Strings & Modals
+│   │   ├── kanban/                     # KanbanBoard, KanbanColumn, KanbanCard
+│   │   ├── navbar/                     # Top navigation, view switcher & status badge
+│   │   ├── projects/                   # Project creation & management modals
+│   │   ├── tasks/                      # TaskModal, Subtasks, FileUploader, Breadcrumbs
+│   │   └── ui/                         # Reusable Radix UI / shadcn components
 │   ├── lib/
-│   │   ├── supabase/       # Supabase client, Server Actions & demo fallbacks
-│   │   └── utils.ts        # Helper functions & Tailwind class merger (cn)
+│   │   ├── supabase/                   # Supabase client, server actions & demo state
+│   │   ├── idea-board-storage.ts       # Idea Board local cache & Supabase cloud sync
+│   │   └── utils.ts                    # Class merge & formatting helpers
 │   └── types/
-│       └── database.types.ts # TypeScript interfaces & Supabase database schema
+│       ├── database.types.ts           # Core database & entity TypeScript interfaces
+│       └── idea-board.types.ts         # Idea Board, Note, Sub-Board & String types
 ├── supabase/
-│   └── schema.sql          # Complete PostgreSQL schema, RLS policies & seed data
-├── .env.example            # Environment variables template
-├── components.json         # shadcn/ui configuration
-├── next.config.mjs         # Next.js configuration (Remote image domains)
-├── package.json            # Project dependencies and scripts
-├── tailwind.config.ts      # Tailwind color palette and plugin setup
-└── tsconfig.json           # TypeScript configuration
+│   ├── schema.sql                      # Core PostgreSQL tables, RLS & seed data
+│   └── idea_board_migration.sql        # IdeaBoards, IdeaNotes, IdeaStrings & storage
+├── .env.example                        # Environment variable template
+├── next.config.mjs                     # Next.js configuration
+├── package.json                        # Scripts & dependencies
+└── tsconfig.json                       # TypeScript configuration
 ```
 
 ---
 
 ## ❓ Troubleshooting & FAQs
 
-### 1. `Error: upstream connect error or disconnect/reset before headers. reset reason: connection timeout`
-- **Cause**: Supabase automatically pauses projects on the free tier after 7 days of inactivity. When Envoy proxy cannot reach the dormant database container, it returns this timeout.
-- **Fix**:
-  1. Open your [Supabase Dashboard](https://supabase.com/dashboard).
-  2. If you see **"Project is paused"**, click **"Restore project"**.
-  3. Wait 1–2 minutes until the status turns green (**Active**), then retry your query or reload the app.
+### 1. Supabase project paused / connection timeout
+- **Cause**: Free-tier Supabase projects pause after 7 days of inactivity.
+- **Fix**: Open your [Supabase Dashboard](https://supabase.com/dashboard) and click **"Restore project"**. Until restored, TaskMaster automatically falls back to local Demo Mode so your workflow is never blocked.
 
-### 2. `relation "public.Softwares" does not exist` or `column "due_date" does not exist`
-- **Cause**: The latest schema migration has not yet been executed in your Supabase project.
-- **Fix**: Open Supabase SQL Editor and execute the script inside [`supabase/schema.sql`](supabase/schema.sql).
-
-### 3. File upload fails in Task Modal
-- **Cause**: The `task-attachments` storage bucket may be missing or private.
-- **Fix**: Make sure step 5 of `supabase/schema.sql` ran successfully:
-  - In Supabase Dashboard &rarr; **Storage**, check that the `task-attachments` bucket exists and is marked **Public**.
-
-### 4. Icons from external URLs fail to load
-- **Cause**: Next.js image domain security.
-- **Fix**: `next.config.mjs` is configured to allow `cdn.jsdelivr.net` and standard image URLs. If using custom CDNs, add the domain to `images.remotePatterns` in [`next.config.mjs`](next.config.mjs).
+### 2. Missing Idea Board tables (`IdeaBoards`, `IdeaNotes`, `IdeaStrings`)
+- **Cause**: Only `supabase/schema.sql` was executed.
+- **Fix**: Run [`supabase/idea_board_migration.sql`](supabase/idea_board_migration.sql) in the Supabase SQL Editor to create the Idea Board tables and nested sub-board columns.
 
 ---
 

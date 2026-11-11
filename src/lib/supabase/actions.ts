@@ -72,6 +72,13 @@ let demoStatusesState: Status[] = [...INITIAL_DEMO_STATUSES];
 
 const INITIAL_DEMO_PROJECTS: Project[] = [
   {
+    id: "project-showcase",
+    name: "Nova Sparkling Drink — Brand Launch",
+    description: "3D Packaging, Can Designs, Brand Identity & Interactive Web Launch",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
     id: "project-1",
     name: "TaskMaster Sprint 1",
     description: "Core Single Page Kanban Application",
@@ -103,43 +110,65 @@ export const INITIAL_DEMO_SOFTWARES: Software[] = [
   {
     id: "soft-1",
     name: "Figma",
-    icon_url: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/figma/figma-original.svg",
+    icon_url:
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 38 57'><path fill='%231abcfe' d='M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0z'/><path fill='%230acf83' d='M0 47.5A9.5 9.5 0 0 1 9.5 38H19v9.5a9.5 9.5 0 1 1-19 0z'/><path fill='%23ff7262' d='M19 0v19h9.5a9.5 9.5 0 1 0 0-19H19z'/><path fill='%23f24e1e' d='M0 9.5A9.5 9.5 0 0 0 9.5 19H19V0H9.5A9.5 9.5 0 0 0 0 9.5z'/><path fill='%23a259ff' d='M0 28.5A9.5 9.5 0 0 0 9.5 38H19V19H9.5A9.5 9.5 0 0 0 0 28.5z'/></svg>",
     created_at: new Date().toISOString(),
   },
   {
     id: "soft-2",
     name: "Blender",
-    icon_url: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/blender/blender-original.svg",
+    icon_url:
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23ea7600'/><circle cx='34' cy='36' r='16' fill='%23fff'/><circle cx='34' cy='36' r='8' fill='%23265787'/><path d='M14 26h24M22 14l16 14' stroke='%23fff' stroke-width='5' stroke-linecap='round'/></svg>",
     created_at: new Date().toISOString(),
   },
   {
     id: "soft-3",
     name: "Photoshop",
-    icon_url: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/photoshop/photoshop-plain.svg",
+    icon_url:
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23001e36' stroke='%2331a8ff' stroke-width='4'/><text x='13' y='44' font-family='Arial,sans-serif' font-weight='bold' font-size='28' fill='%2331a8ff'>Ps</text></svg>",
     created_at: new Date().toISOString(),
   },
   {
     id: "soft-4",
     name: "VS Code",
-    icon_url: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/vscode/vscode-original.svg",
+    icon_url:
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23007acc'/><path d='M44 12L20 36l-8-6-4 4 12 10 24-24v24l8-4V16z' fill='%23fff'/></svg>",
     created_at: new Date().toISOString(),
   },
   {
     id: "soft-5",
     name: "Unreal Engine",
-    icon_url: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/unrealengine/unrealengine-original.svg",
+    icon_url:
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='28' fill='%2318181b' stroke='%23fff' stroke-width='3'/><text x='20' y='43' font-family='Georgia,serif' font-weight='bold' font-size='32' fill='%23fff'>U</text></svg>",
     created_at: new Date().toISOString(),
   },
   {
     id: "soft-6",
     name: "Illustrator",
-    icon_url: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/illustrator/illustrator-plain.svg",
+    icon_url:
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23330000' stroke='%23ff9a00' stroke-width='4'/><text x='14' y='44' font-family='Arial,sans-serif' font-weight='bold' font-size='28' fill='%23ff9a00'>Ai</text></svg>",
     created_at: new Date().toISOString(),
   },
 ];
 
 let demoSoftwaresState: Software[] = [...INITIAL_DEMO_SOFTWARES];
 let demoTasksSoftwaresState: { Task_Id: string; Software_Id: string }[] = [
+  { Task_Id: "task-nova-1", Software_Id: "soft-2" },
+  { Task_Id: "task-nova-1", Software_Id: "soft-3" },
+  { Task_Id: "task-nova-1", Software_Id: "soft-5" },
+  { Task_Id: "subtask-nova-1-1", Software_Id: "soft-2" },
+  { Task_Id: "subtask-nova-1-2", Software_Id: "soft-2" },
+  { Task_Id: "subtask-nova-1-2", Software_Id: "soft-3" },
+  { Task_Id: "task-nova-2", Software_Id: "soft-6" },
+  { Task_Id: "task-nova-2", Software_Id: "soft-1" },
+  { Task_Id: "task-nova-2", Software_Id: "soft-3" },
+  { Task_Id: "subtask-nova-2-1", Software_Id: "soft-6" },
+  { Task_Id: "task-nova-3", Software_Id: "soft-4" },
+  { Task_Id: "task-nova-3", Software_Id: "soft-1" },
+  { Task_Id: "task-nova-3", Software_Id: "soft-2" },
+  { Task_Id: "task-nova-4", Software_Id: "soft-1" },
+  { Task_Id: "task-nova-4", Software_Id: "soft-6" },
+  { Task_Id: "task-nova-5", Software_Id: "soft-1" },
   { Task_Id: "task-1", Software_Id: "soft-4" },
   { Task_Id: "task-1", Software_Id: "soft-1" },
   { Task_Id: "task-2", Software_Id: "soft-1" },
@@ -389,7 +418,8 @@ const INITIAL_DEMO_USERS: User[] = [
     Name: "Sarah Connor",
     email: "sarah@taskmaster.dev",
     password: null,
-    avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+    avatar_url:
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='32' fill='%23ec4899'/><text x='32' y='41' text-anchor='middle' font-family='Arial,sans-serif' font-weight='bold' font-size='24' fill='%23fff'>SC</text></svg>",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -398,7 +428,8 @@ const INITIAL_DEMO_USERS: User[] = [
     Name: "Alex Rivera",
     email: "alex@taskmaster.dev",
     password: null,
-    avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
+    avatar_url:
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='32' fill='%233b82f6'/><text x='32' y='41' text-anchor='middle' font-family='Arial,sans-serif' font-weight='bold' font-size='24' fill='%23fff'>AR</text></svg>",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -407,13 +438,246 @@ const INITIAL_DEMO_USERS: User[] = [
     Name: "Elena Rostova",
     email: "elena@taskmaster.dev",
     password: null,
-    avatar_url: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150",
+    avatar_url:
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='32' fill='%2310b981'/><text x='32' y='41' text-anchor='middle' font-family='Arial,sans-serif' font-weight='bold' font-size='24' fill='%23fff'>ER</text></svg>",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
 ];
 
 let demoTasksState: TaskWithDetails[] = [
+  {
+    id: "task-nova-1",
+    name: "3D Aluminum Can Modeling & Condensation Shaders",
+    description:
+      "### 330ml Sleek Can Production Spec\nCreate photorealistic 330ml sleek can geometry in **Blender** with procedural condensation droplets and brushed aluminum shaders.\n\n- [x] Base mesh topology & pull-tab bevels\n- [x] Procedural water droplet Geometry Nodes\n- [ ] Bake 4K PBR metallic roughness & normal maps\n- [ ] Export GLTF 2.0 for interactive web configurator",
+    status_id: "status-3",
+    Task_Parent_Id: null,
+    Project_id: "project-showcase",
+    position: 0,
+    due_date: new Date(Date.now() + 86400000 * 3).toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    task_types: [INITIAL_DEMO_TASKTYPES[3], INITIAL_DEMO_TASKTYPES[0]],
+    assignees: [INITIAL_DEMO_USERS[1], INITIAL_DEMO_USERS[0]],
+    breadcrumbs: [{ id: "task-nova-1", name: "3D Aluminum Can Modeling & Condensation Shaders" }],
+    subtasks: [
+      {
+        id: "subtask-nova-1-1",
+        name: "Sculpt water droplet procedural geometry nodes",
+        description: "Distribute micro and macro condensation droplets across aluminum surface with gravity trails.",
+        status_id: "status-5",
+        Task_Parent_Id: "task-nova-1",
+        Project_id: "project-showcase",
+        position: 0,
+        due_date: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        task_types: [INITIAL_DEMO_TASKTYPES[3]],
+        assignees: [INITIAL_DEMO_USERS[1]],
+        subtasks: [],
+        resources: [],
+        breadcrumbs: [
+          { id: "task-nova-1", name: "3D Aluminum Can Modeling & Condensation Shaders" },
+          { id: "subtask-nova-1-1", name: "Sculpt water droplet procedural geometry nodes" },
+        ],
+      },
+      {
+        id: "subtask-nova-1-2",
+        name: "Bake metallic brushed aluminum roughness & normal maps",
+        description: "Anisotropic brushed metal shader with matte varnish label mask.",
+        status_id: "status-3",
+        Task_Parent_Id: "task-nova-1",
+        Project_id: "project-showcase",
+        position: 1,
+        due_date: new Date(Date.now() + 86400000 * 2).toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        task_types: [INITIAL_DEMO_TASKTYPES[3], INITIAL_DEMO_TASKTYPES[2]],
+        assignees: [INITIAL_DEMO_USERS[0]],
+        subtasks: [
+          {
+            id: "subtask-nova-1-2-1",
+            name: "Export 4K PBR texture maps for WebGL viewer",
+            description: "Pack ORM (Occlusion, Roughness, Metallic) into single channel texture.",
+            status_id: "status-2",
+            Task_Parent_Id: "subtask-nova-1-2",
+            Project_id: "project-showcase",
+            position: 0,
+            due_date: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            task_types: [INITIAL_DEMO_TASKTYPES[0]],
+            assignees: [INITIAL_DEMO_USERS[1]],
+            subtasks: [],
+            resources: [],
+            breadcrumbs: [
+              { id: "task-nova-1", name: "3D Aluminum Can Modeling & Condensation Shaders" },
+              { id: "subtask-nova-1-2", name: "Bake metallic brushed aluminum roughness & normal maps" },
+              { id: "subtask-nova-1-2-1", name: "Export 4K PBR texture maps for WebGL viewer" },
+            ],
+          },
+        ],
+        resources: [],
+        breadcrumbs: [
+          { id: "task-nova-1", name: "3D Aluminum Can Modeling & Condensation Shaders" },
+          { id: "subtask-nova-1-2", name: "Bake metallic brushed aluminum roughness & normal maps" },
+        ],
+      },
+      {
+        id: "subtask-nova-1-3",
+        name: "Render studio turntable lighting pass",
+        description: "3-point rim lighting setup with HDRI reflections for hero marketing shots.",
+        status_id: "status-2",
+        Task_Parent_Id: "task-nova-1",
+        Project_id: "project-showcase",
+        position: 2,
+        due_date: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        task_types: [INITIAL_DEMO_TASKTYPES[3]],
+        assignees: [INITIAL_DEMO_USERS[2]],
+        subtasks: [],
+        resources: [],
+        breadcrumbs: [
+          { id: "task-nova-1", name: "3D Aluminum Can Modeling & Condensation Shaders" },
+          { id: "subtask-nova-1-3", name: "Render studio turntable lighting pass" },
+        ],
+      },
+    ],
+    resources: [],
+  },
+  {
+    id: "task-nova-2",
+    name: "Flavor Lineup Typography & Can Label Artwork",
+    description:
+      "Design wrap-around vector illustrations and custom typography for the 3 launch editions:\n1. **Tropical Citrus Sunrise**\n2. **Midnight Berry Zero**\n3. **Botanical Ginger Fizz**",
+    status_id: "status-2",
+    Task_Parent_Id: null,
+    Project_id: "project-showcase",
+    position: 0,
+    due_date: new Date(Date.now() + 86400000 * 5).toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    task_types: [INITIAL_DEMO_TASKTYPES[3]],
+    assignees: [INITIAL_DEMO_USERS[2], INITIAL_DEMO_USERS[0]],
+    breadcrumbs: [{ id: "task-nova-2", name: "Flavor Lineup Typography & Can Label Artwork" }],
+    subtasks: [
+      {
+        id: "subtask-nova-2-1",
+        name: "Tropical Citrus Sunrise — Vector botanical illustrations",
+        description: "Yuzu, blood orange, and passionfruit geometric foliage patterns.",
+        status_id: "status-3",
+        Task_Parent_Id: "task-nova-2",
+        Project_id: "project-showcase",
+        position: 0,
+        due_date: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        task_types: [INITIAL_DEMO_TASKTYPES[3]],
+        assignees: [INITIAL_DEMO_USERS[2]],
+        subtasks: [],
+        resources: [],
+        breadcrumbs: [
+          { id: "task-nova-2", name: "Flavor Lineup Typography & Can Label Artwork" },
+          { id: "subtask-nova-2-1", name: "Tropical Citrus Sunrise — Vector botanical illustrations" },
+        ],
+      },
+      {
+        id: "subtask-nova-2-2",
+        name: "Midnight Berry Zero — Holographic foil stamp layout",
+        description: "Deep indigo matte background with silver holographic starlight accents.",
+        status_id: "status-2",
+        Task_Parent_Id: "task-nova-2",
+        Project_id: "project-showcase",
+        position: 1,
+        due_date: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        task_types: [INITIAL_DEMO_TASKTYPES[3]],
+        assignees: [INITIAL_DEMO_USERS[0]],
+        subtasks: [],
+        resources: [],
+        breadcrumbs: [
+          { id: "task-nova-2", name: "Flavor Lineup Typography & Can Label Artwork" },
+          { id: "subtask-nova-2-2", name: "Midnight Berry Zero — Holographic foil stamp layout" },
+        ],
+      },
+    ],
+    resources: [],
+  },
+  {
+    id: "task-nova-3",
+    name: "Interactive 3D Product Configurator Landing Page",
+    description: "WebGL landing page allowing visitors to spin each Nova can in 360° and inspect flavor notes.",
+    status_id: "status-4",
+    Task_Parent_Id: null,
+    Project_id: "project-showcase",
+    position: 0,
+    due_date: new Date(Date.now() + 86400000 * 1).toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    task_types: [INITIAL_DEMO_TASKTYPES[0], INITIAL_DEMO_TASKTYPES[2]],
+    assignees: [INITIAL_DEMO_USERS[1]],
+    breadcrumbs: [{ id: "task-nova-3", name: "Interactive 3D Product Configurator Landing Page" }],
+    subtasks: [
+      {
+        id: "subtask-nova-3-1",
+        name: "Implement scroll-driven flavor transition animations",
+        description: "Smooth camera orbit and background color morphing on scroll.",
+        status_id: "status-5",
+        Task_Parent_Id: "task-nova-3",
+        Project_id: "project-showcase",
+        position: 0,
+        due_date: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        task_types: [INITIAL_DEMO_TASKTYPES[0]],
+        assignees: [INITIAL_DEMO_USERS[1]],
+        subtasks: [],
+        resources: [],
+        breadcrumbs: [
+          { id: "task-nova-3", name: "Interactive 3D Product Configurator Landing Page" },
+          { id: "subtask-nova-3-1", name: "Implement scroll-driven flavor transition animations" },
+        ],
+      },
+    ],
+    resources: [],
+  },
+  {
+    id: "task-nova-4",
+    name: "Retail POS Display Stand & Launch Press Kit",
+    description: "Die-cut cardboard retail display specifications and influencer unboxing press kit.",
+    status_id: "status-1",
+    Task_Parent_Id: null,
+    Project_id: "project-showcase",
+    position: 0,
+    due_date: new Date(Date.now() + 86400000 * 7).toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    task_types: [INITIAL_DEMO_TASKTYPES[4], INITIAL_DEMO_TASKTYPES[3]],
+    assignees: [INITIAL_DEMO_USERS[2]],
+    breadcrumbs: [{ id: "task-nova-4", name: "Retail POS Display Stand & Launch Press Kit" }],
+    subtasks: [],
+    resources: [],
+  },
+  {
+    id: "task-nova-5",
+    name: "Brand Strategy & Target Demographics Research",
+    description: "Complete market positioning study, flavor taste-test survey results, and brand guidelines.",
+    status_id: "status-5",
+    Task_Parent_Id: null,
+    Project_id: "project-showcase",
+    position: 0,
+    due_date: new Date(Date.now() - 86400000 * 2).toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    task_types: [INITIAL_DEMO_TASKTYPES[4]],
+    assignees: [INITIAL_DEMO_USERS[0]],
+    breadcrumbs: [{ id: "task-nova-5", name: "Brand Strategy & Target Demographics Research" }],
+    subtasks: [],
+    resources: [],
+  },
   {
     id: "task-1",
     name: "Implement Supabase Auth and User session handling",
@@ -609,6 +873,69 @@ export async function fetchBoardData(): Promise<{
   allTasks: TaskWithDetails[];
   isConfigured: boolean;
 }> {
+  const getDemoBoardResponse = () => {
+    const enrichDemoTasks = (list: TaskWithDetails[]): TaskWithDetails[] => {
+      return list.map((t) => {
+        const softIds = demoTasksSoftwaresState
+          .filter((rel) => rel.Task_Id === t.id)
+          .map((rel) => rel.Software_Id);
+        const softwares = softIds
+          .map((id) => demoSoftwaresState.find((s) => s.id === id))
+          .filter(Boolean) as Software[];
+
+        const matIds = demoTasksMaterialsState
+          .filter((rel) => rel.Task_Id === t.id)
+          .map((rel) => rel.Material_Id);
+        const educational_materials = matIds
+          .map((id) => demoEducationalMaterialsState.find((m) => m.id === id))
+          .filter(Boolean) as EducationalMaterial[];
+
+        const statusObj = t.status_id
+          ? demoStatusesState.find((s) => s.id === t.status_id) || null
+          : null;
+        const projectObj = t.Project_id
+          ? demoProjectsState.find((p) => p.id === t.Project_id) || null
+          : null;
+
+        const enrichedSubtasks =
+          t.subtasks && t.subtasks.length > 0
+            ? enrichDemoTasks(t.subtasks)
+            : t.subtasks;
+        return {
+          ...t,
+          status: statusObj,
+          project: projectObj,
+          softwares,
+          educational_materials,
+          subtasks: enrichedSubtasks,
+        };
+      });
+    };
+
+    const enrichedTasks = enrichDemoTasks(demoTasksState);
+    const flattenTasks = (list: TaskWithDetails[]): TaskWithDetails[] => {
+      const out: TaskWithDetails[] = [];
+      list.forEach((t) => {
+        out.push(t);
+        if (t.subtasks && t.subtasks.length > 0) {
+          out.push(...flattenTasks(t.subtasks));
+        }
+      });
+      return out;
+    };
+
+    return {
+      statuses: demoStatusesState,
+      projects: demoProjectsState,
+      taskTypes: demoTaskTypesState,
+      softwares: demoSoftwaresState,
+      users: INITIAL_DEMO_USERS,
+      tasks: enrichedTasks,
+      allTasks: flattenTasks(enrichedTasks),
+      isConfigured: false,
+    };
+  };
+
   if (!isSupabaseConfigured) {
     if (typeof window !== "undefined") {
       const applyOrder = (taskList: TaskWithDetails[]) => {
@@ -653,42 +980,7 @@ export async function fetchBoardData(): Promise<{
       applyOrder(demoTasksState);
     }
 
-    // Enrich demo tasks with softwares and educational materials
-    const enrichDemoTasks = (list: TaskWithDetails[]): TaskWithDetails[] => {
-      return list.map((t) => {
-        const softIds = demoTasksSoftwaresState
-          .filter((rel) => rel.Task_Id === t.id)
-          .map((rel) => rel.Software_Id);
-        const softwares = softIds
-          .map((id) => demoSoftwaresState.find((s) => s.id === id))
-          .filter(Boolean) as Software[];
-
-        const matIds = demoTasksMaterialsState
-          .filter((rel) => rel.Task_Id === t.id)
-          .map((rel) => rel.Material_Id);
-        const educational_materials = matIds
-          .map((id) => demoEducationalMaterialsState.find((m) => m.id === id))
-          .filter(Boolean) as EducationalMaterial[];
-
-        const enrichedSubtasks =
-          t.subtasks && t.subtasks.length > 0
-            ? enrichDemoTasks(t.subtasks)
-            : t.subtasks;
-        return { ...t, softwares, educational_materials, subtasks: enrichedSubtasks };
-      });
-    };
-    const enrichedTasks = enrichDemoTasks(demoTasksState);
-
-    return {
-      statuses: demoStatusesState,
-      projects: demoProjectsState,
-      taskTypes: demoTaskTypesState,
-      softwares: demoSoftwaresState,
-      users: INITIAL_DEMO_USERS,
-      tasks: enrichedTasks,
-      allTasks: enrichedTasks,
-      isConfigured: false,
-    };
+    return getDemoBoardResponse();
   }
 
   try {
@@ -905,28 +1197,68 @@ export async function fetchBoardData(): Promise<{
     const topLevelTasks = Array.from(enrichedTasksMap.values()).filter((t) => !t.Task_Parent_Id);
     const allTasksList = Array.from(enrichedTasksMap.values());
 
+    // Ensure the Showcase Test Project ("project-showcase") and its tasks/subtasks are always available
+    const demoData = getDemoBoardResponse();
+    const showcaseProject = demoData.projects.find((p) => p.id === "project-showcase");
+    const finalProjects = [...(projects || [])];
+    if (showcaseProject && !finalProjects.some((p) => p.id === "project-showcase")) {
+      finalProjects.unshift(showcaseProject);
+    }
+
+    const finalStatuses = statuses && statuses.length > 0 ? statuses : demoData.statuses;
+    const mapShowcaseStatusId = (demoStatusId: string | null): string | null => {
+      if (!demoStatusId) return finalStatuses[0]?.id || null;
+      const idxMap: Record<string, number> = {
+        "status-1": 0,
+        "status-2": 1,
+        "status-3": 2,
+        "status-4": 3,
+        "status-5": 4,
+      };
+      const idx = idxMap[demoStatusId] ?? 0;
+      return finalStatuses[idx]?.id || finalStatuses[0]?.id || demoStatusId;
+    };
+
+    const remapTaskStatuses = (t: TaskWithDetails): TaskWithDetails => {
+      const mappedStatusId = mapShowcaseStatusId(t.status_id);
+      const mappedStatusObj = finalStatuses.find((s) => s.id === mappedStatusId) || t.status || null;
+      return {
+        ...t,
+        status_id: mappedStatusId,
+        status: mappedStatusObj,
+        subtasks: t.subtasks ? t.subtasks.map(remapTaskStatuses) : [],
+      };
+    };
+
+    const showcaseRootTasks = demoData.tasks
+      .filter((t) => t.Project_id === "project-showcase")
+      .map(remapTaskStatuses);
+    const showcaseAllTasks = demoData.allTasks
+      .filter((t) => t.Project_id === "project-showcase")
+      .map(remapTaskStatuses);
+
+    const mergedTopTasks = [
+      ...showcaseRootTasks.filter((st) => !topLevelTasks.some((t) => t.id === st.id)),
+      ...topLevelTasks,
+    ];
+    const mergedAllTasks = [
+      ...showcaseAllTasks.filter((st) => !allTasksList.some((t) => t.id === st.id)),
+      ...allTasksList,
+    ];
+
     return {
-      statuses: statuses || [],
-      projects: projects || [],
-      taskTypes: taskTypes || [],
-      softwares: softwares || [],
-      users: users || [],
-      tasks: topLevelTasks,
-      allTasks: allTasksList,
+      statuses: finalStatuses,
+      projects: finalProjects,
+      taskTypes: taskTypes && taskTypes.length > 0 ? taskTypes : demoData.taskTypes,
+      softwares: softwares && softwares.length > 0 ? softwares : demoData.softwares,
+      users: users && users.length > 0 ? users : demoData.users,
+      tasks: mergedTopTasks,
+      allTasks: mergedAllTasks,
       isConfigured: true,
     };
   } catch (error) {
     console.error("Supabase data fetch error, falling back to local state:", error);
-    return {
-      statuses: demoStatusesState,
-      projects: demoProjectsState,
-      taskTypes: demoTaskTypesState,
-      softwares: demoSoftwaresState,
-      users: INITIAL_DEMO_USERS,
-      tasks: demoTasksState,
-      allTasks: demoTasksState,
-      isConfigured: false,
-    };
+    return getDemoBoardResponse();
   }
 }
 

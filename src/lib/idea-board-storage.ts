@@ -41,8 +41,8 @@ export const INITIAL_DEMO_NOTES: IdeaNote[] = [
     content:
       "**Ref:** Cyber-noir dusk aesthetic. Heavy neon contrast with volumetric fog.",
     file_url:
-      "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop",
-    file_name: "cyberpunk_city_dusk.jpg",
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 220'><defs><linearGradient id='sky' x1='0' y1='0' x2='0' y2='1'><stop offset='0%' stop-color='%23090d16'/><stop offset='60%' stop-color='%231e1b4b'/><stop offset='100%' stop-color='%23701a75'/></linearGradient></defs><rect width='400' height='220' fill='url(%23sky)'/><circle cx='310' cy='60' r='32' fill='%23f43f5e' opacity='0.85'/><rect x='25' y='90' width='45' height='130' fill='%230f172a'/><rect x='80' y='65' width='55' height='155' fill='%231e293b'/><rect x='145' y='105' width='40' height='115' fill='%230f172a'/><rect x='195' y='50' width='65' height='170' fill='%23090d16'/><rect x='270' y='85' width='50' height='135' fill='%231e293b'/><rect x='330' y='110' width='45' height='110' fill='%230f172a'/><line x1='0' y1='195' x2='400' y2='195' stroke='%2306b6d4' stroke-width='2' opacity='0.7'/></svg>",
+    file_name: "cyberpunk_city_dusk.svg",
     color: "white",
     pin_color: "gold",
     x: 520,
@@ -175,11 +175,353 @@ export function getSubboardsStorageKey(projectId?: string | null): string {
   return `taskmaster_subboards_${projectId || "all"}`;
 }
 
+export const SHOWCASE_SUBBOARDS: IdeaBoardItem[] = [
+  {
+    id: "subboard-citrus",
+    project_id: "project-showcase",
+    name: "Tropical Citrus Can",
+    parent_board_id: null,
+    icon: "sparkles",
+    theme: "cork",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "subboard-berry",
+    project_id: "project-showcase",
+    name: "Midnight Berry Can",
+    parent_board_id: null,
+    icon: "palette",
+    theme: "cork",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "subboard-ginger",
+    project_id: "project-showcase",
+    name: "Botanical Ginger Can",
+    parent_board_id: null,
+    icon: "flame",
+    theme: "cork",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+export const SHOWCASE_ROOT_NOTES: IdeaNote[] = [
+  {
+    id: "note-nova-1",
+    project_id: "project-showcase",
+    type: "text",
+    title: "Nova Brand Vision & Core Pillars",
+    content:
+      "### Refreshment Reimagined\n- **Zero Sugar**, natural botanical extracts\n- Matte-metallic tactile aluminum finish\n- [x] Finalize 3 launch hero flavors\n- [ ] Approve holographic foil embossing\n\n> *\"Every can should feel like a collectible art piece.\"*",
+    color: "yellow",
+    pin_color: "red",
+    x: 70,
+    y: 75,
+    width: 310,
+    rotation: -1.4,
+    z_index: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "note-nova-2",
+    project_id: "project-showcase",
+    type: "task",
+    task_id: "task-nova-1",
+    title: "3D Aluminum Can Modeling & Condensation Shaders",
+    content:
+      "Create photorealistic 330ml sleek can geometry in Blender with procedural condensation droplets and brushed aluminum shaders.",
+    color: "mint",
+    pin_color: "green",
+    x: 440,
+    y: 70,
+    width: 310,
+    rotation: 1.2,
+    z_index: 3,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "note-nova-3",
+    project_id: "project-showcase",
+    type: "task",
+    task_id: "task-nova-2",
+    title: "Flavor Lineup Typography & Can Label Artwork",
+    content:
+      "Design wrap-around vector illustrations and custom typography for the 3 launch editions: Tropical Citrus, Midnight Berry & Botanical Ginger.",
+    color: "sky",
+    pin_color: "blue",
+    x: 810,
+    y: 75,
+    width: 310,
+    rotation: -1.1,
+    z_index: 4,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "note-nova-4",
+    project_id: "project-showcase",
+    type: "board",
+    sub_board_id: "subboard-citrus",
+    icon: "sparkles",
+    title: "Tropical Citrus Can",
+    content: "Nested Idea Board",
+    color: "yellow",
+    pin_color: "gold",
+    x: 110,
+    y: 410,
+    width: 220,
+    rotation: -1.0,
+    z_index: 5,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "note-nova-5",
+    project_id: "project-showcase",
+    type: "board",
+    sub_board_id: "subboard-berry",
+    icon: "palette",
+    title: "Midnight Berry Can",
+    content: "Nested Idea Board",
+    color: "lavender",
+    pin_color: "pink",
+    x: 420,
+    y: 420,
+    width: 220,
+    rotation: 1.4,
+    z_index: 6,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "note-nova-6",
+    project_id: "project-showcase",
+    type: "board",
+    sub_board_id: "subboard-ginger",
+    icon: "flame",
+    title: "Botanical Ginger Can",
+    content: "Nested Idea Board",
+    color: "mint",
+    pin_color: "green",
+    x: 730,
+    y: 410,
+    width: 220,
+    rotation: -1.2,
+    z_index: 7,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "note-nova-7",
+    project_id: "project-showcase",
+    type: "task",
+    task_id: "task-nova-3",
+    title: "Interactive 3D Product Configurator Landing Page",
+    content:
+      "WebGL landing page allowing visitors to spin each Nova can in 360° and inspect flavor notes.",
+    color: "rose",
+    pin_color: "red",
+    x: 1020,
+    y: 410,
+    width: 300,
+    rotation: 1.1,
+    z_index: 8,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "note-nova-8",
+    project_id: "project-showcase",
+    type: "image",
+    title: "330ml Sleek Can — Hero Render Preview",
+    content: "**Studio Pass v2:** Matte coral-gold gradient with condensation droplets.",
+    file_url:
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 240'><defs><linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%2318181b'/><stop offset='100%' stop-color='%2327272a'/></linearGradient><linearGradient id='can' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23ff6b35'/><stop offset='50%' stop-color='%23f7c548'/><stop offset='100%' stop-color='%232ec4b6'/></linearGradient></defs><rect width='400' height='240' fill='url(%23bg)'/><circle cx='200' cy='120' r='95' fill='%23f59e0b' opacity='0.12'/><rect x='145' y='28' width='110' height='184' rx='18' fill='url(%23can)' stroke='%23e4e4e7' stroke-width='3'/><ellipse cx='200' cy='32' rx='50' ry='8' fill='%23d4d4d8'/><ellipse cx='200' cy='208' rx='48' ry='7' fill='%23a1a1aa'/><text x='200' y='118' text-anchor='middle' font-family='Arial,sans-serif' font-weight='900' font-size='26' fill='%23fff' letter-spacing='3'>NOVA</text><text x='200' y='140' text-anchor='middle' font-family='Arial,sans-serif' font-weight='bold' font-size='9' fill='%23fff' letter-spacing='2'>SPARKLING BOTANICAL</text><circle cx='165' cy='75' r='3' fill='%23fff' opacity='0.75'/><circle cx='232' cy='158' r='4' fill='%23fff' opacity='0.75'/><circle cx='175' cy='172' r='2.5' fill='%23fff' opacity='0.75'/></svg>",
+    file_name: "nova_can_render_v2.svg",
+    color: "white",
+    pin_color: "blue",
+    x: 1150,
+    y: 70,
+    width: 280,
+    rotation: 1.6,
+    z_index: 9,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+export const SHOWCASE_ROOT_CONNECTIONS: IdeaStringConnection[] = [
+  {
+    id: "conn-nova-1",
+    project_id: "project-showcase",
+    from_note_id: "note-nova-1",
+    to_note_id: "note-nova-2",
+    color: "red",
+    label: "3D Pipeline",
+    tension: "normal",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "conn-nova-2",
+    project_id: "project-showcase",
+    from_note_id: "note-nova-2",
+    to_note_id: "note-nova-3",
+    color: "twine",
+    label: "UV Label Wrap",
+    tension: "normal",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "conn-nova-7",
+    project_id: "project-showcase",
+    from_note_id: "note-nova-3",
+    to_note_id: "note-nova-8",
+    color: "blue",
+    label: "Hero Render",
+    tension: "normal",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "conn-nova-3",
+    project_id: "project-showcase",
+    from_note_id: "note-nova-1",
+    to_note_id: "note-nova-4",
+    color: "yellow",
+    label: "Hero Edition #1",
+    tension: "normal",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "conn-nova-4",
+    project_id: "project-showcase",
+    from_note_id: "note-nova-3",
+    to_note_id: "note-nova-5",
+    color: "blue",
+    label: "Dark Series",
+    tension: "normal",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "conn-nova-5",
+    project_id: "project-showcase",
+    from_note_id: "note-nova-3",
+    to_note_id: "note-nova-6",
+    color: "green",
+    label: "Botanical Series",
+    tension: "normal",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "conn-nova-6",
+    project_id: "project-showcase",
+    from_note_id: "note-nova-2",
+    to_note_id: "note-nova-7",
+    color: "red",
+    label: "GLTF Export",
+    tension: "loose",
+    created_at: new Date().toISOString(),
+  },
+];
+
+export const SHOWCASE_CITRUS_NOTES: IdeaNote[] = [
+  {
+    id: "note-citrus-1",
+    project_id: "project-showcase",
+    board_id: "subboard-citrus",
+    type: "text",
+    title: "Color Palette: Sunburst Coral & Yuzu Gold",
+    content:
+      "### Tropical Citrus Swatches\n- **Primary Gradient:** `#FF6B35` → `#F7C548`\n- **Botanical Accent:** `#2EC4B6` (Teal Leaf)\n- **Typography:** Warm Cream `#FFFDF7` with gold foil outline",
+    color: "yellow",
+    pin_color: "gold",
+    x: 120,
+    y: 110,
+    width: 320,
+    rotation: -1.3,
+    z_index: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "note-citrus-2",
+    project_id: "project-showcase",
+    board_id: "subboard-citrus",
+    type: "task",
+    task_id: "subtask-nova-2-1",
+    title: "Tropical Citrus Sunrise — Vector botanical illustrations",
+    content:
+      "Yuzu, blood orange, and passionfruit geometric foliage patterns wrapping 360° around the upper rim.",
+    color: "mint",
+    pin_color: "green",
+    x: 520,
+    y: 100,
+    width: 320,
+    rotation: 1.4,
+    z_index: 3,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "note-citrus-3",
+    project_id: "project-showcase",
+    board_id: "subboard-citrus",
+    type: "text",
+    title: "Tactile Varnish & Embossing Spec",
+    content:
+      "### Print Finishing\n- [x] Matte soft-touch base lamination\n- [x] Raised spot-UV gloss on citrus droplets\n- [ ] Bare brushed aluminum reveal on NOVA wordmark",
+    color: "kraft",
+    pin_color: "red",
+    x: 340,
+    y: 390,
+    width: 330,
+    rotation: -0.9,
+    z_index: 4,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+export const SHOWCASE_CITRUS_CONNECTIONS: IdeaStringConnection[] = [
+  {
+    id: "conn-citrus-1",
+    project_id: "project-showcase",
+    board_id: "subboard-citrus",
+    from_note_id: "note-citrus-1",
+    to_note_id: "note-citrus-2",
+    color: "yellow",
+    label: "Swatches Applied",
+    tension: "normal",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "conn-citrus-2",
+    project_id: "project-showcase",
+    board_id: "subboard-citrus",
+    from_note_id: "note-citrus-2",
+    to_note_id: "note-citrus-3",
+    color: "red",
+    label: "Spot-UV Mask",
+    tension: "normal",
+    created_at: new Date().toISOString(),
+  },
+];
+
 export function getSubboardsFromCache(projectId?: string | null): IdeaBoardItem[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") {
+    return projectId === "project-showcase" ? [...SHOWCASE_SUBBOARDS] : [];
+  }
   try {
     const raw = localStorage.getItem(getSubboardsStorageKey(projectId));
     if (raw) return JSON.parse(raw);
+    if (projectId === "project-showcase") {
+      localStorage.setItem(getSubboardsStorageKey(projectId), JSON.stringify(SHOWCASE_SUBBOARDS));
+      return [...SHOWCASE_SUBBOARDS];
+    }
   } catch {}
   return [];
 }
@@ -194,10 +536,33 @@ export function saveSubboardsToCache(
   } catch {}
 }
 
-export function generateInitialProjectBoard(projectId?: string | null): IdeaBoardData {
+export function generateInitialProjectBoard(
+  projectId?: string | null,
+  boardId?: string | null
+): IdeaBoardData {
+  if (projectId === "project-showcase") {
+    if (!boardId) {
+      return {
+        notes: SHOWCASE_ROOT_NOTES.map((n) => ({ ...n })),
+        connections: SHOWCASE_ROOT_CONNECTIONS.map((c) => ({ ...c })),
+        theme: "cork",
+      };
+    }
+    if (boardId === "subboard-citrus") {
+      return {
+        id: "subboard-citrus",
+        name: "Tropical Citrus Can",
+        parent_board_id: null,
+        notes: SHOWCASE_CITRUS_NOTES.map((n) => ({ ...n })),
+        connections: SHOWCASE_CITRUS_CONNECTIONS.map((c) => ({ ...c })),
+        theme: "cork",
+      };
+    }
+  }
+
   const pId = normalizeProjectId(projectId);
 
-  if (!pId) {
+  if (!pId && (!projectId || projectId === "all") && !boardId) {
     return {
       notes: INITIAL_DEMO_NOTES.map((n) => ({ ...n })),
       connections: INITIAL_DEMO_CONNECTIONS.map((c) => ({ ...c })),
@@ -207,6 +572,7 @@ export function generateInitialProjectBoard(projectId?: string | null): IdeaBoar
 
   // Projects default to an empty board (Requirement 2)
   return {
+    id: boardId || undefined,
     notes: [],
     connections: [],
     theme: "cork",
@@ -262,9 +628,12 @@ export function loadIdeaBoard(
     console.error("Failed to load idea board from localStorage:", err);
   }
 
-  // Requirement 2: Empty board by default for projects or sub-boards!
-  if (!boardId && (!projectId || projectId === "all")) {
-    const initialData = generateInitialProjectBoard(projectId);
+  // Pre-seeded Showcase Project ("project-showcase") or Global Demo Board ("all")
+  if (
+    projectId === "project-showcase" ||
+    (!boardId && (!projectId || projectId === "all"))
+  ) {
+    const initialData = generateInitialProjectBoard(projectId, boardId);
     saveIdeaBoard(projectId, initialData, boardId);
     return initialData;
   }
@@ -290,6 +659,10 @@ export async function fetchIdeaBoardFromDb(
   const localCached = loadIdeaBoard(projectId, boardId);
 
   if (!isSupabaseConfigured) {
+    return localCached;
+  }
+
+  if (projectId && projectId !== "all" && !isValidUuid(projectId)) {
     return localCached;
   }
 
@@ -433,6 +806,7 @@ export async function saveIdeaBoardToDb(
   boardId?: string | null
 ): Promise<void> {
   if (!isSupabaseConfigured) return;
+  if (projectId && projectId !== "all" && !isValidUuid(projectId)) return;
   const pId = normalizeProjectId(projectId);
 
   try {
@@ -685,6 +1059,7 @@ export function resetIdeaBoard(projectId?: string | null, boardId?: string | nul
 export async function fetchSubboardsFromDb(projectId?: string | null): Promise<IdeaBoardItem[]> {
   const localCached = getSubboardsFromCache(projectId);
   if (!isSupabaseConfigured || !supabase) return localCached;
+  if (projectId && projectId !== "all" && !isValidUuid(projectId)) return localCached;
   const pId = normalizeProjectId(projectId);
 
   try {
@@ -873,6 +1248,15 @@ export function getLinkedTaskIdsFromCache(projectId?: string | null): Set<string
   if (typeof window === "undefined") return linked;
 
   try {
+    if (projectId === "project-showcase" || !projectId || projectId === "all") {
+      SHOWCASE_ROOT_NOTES.forEach((n) => {
+        if (n.task_id) linked.add(n.task_id);
+      });
+      SHOWCASE_CITRUS_NOTES.forEach((n) => {
+        if (n.task_id) linked.add(n.task_id);
+      });
+    }
+
     if (projectId && projectId !== "all") {
       const board = loadIdeaBoard(projectId);
       board.notes.forEach((n) => {
