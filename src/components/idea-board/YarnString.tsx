@@ -163,11 +163,11 @@ export function YarnString({
         <path
           d={path}
           fill="none"
-          stroke="rgba(0,0,0,0.32)"
-          strokeWidth={4.5}
+          stroke="rgba(0,0,0,0.28)"
+          strokeWidth={2.6}
           strokeLinecap="round"
-          transform="translate(2, 4)"
-          className="pointer-events-none filter blur-[1.5px]"
+          transform="translate(1.5, 3)"
+          className="pointer-events-none filter blur-[1px]"
         />
 
         {/* 2. Invisible Wide Hitbox for Easy Clicking */}
@@ -175,7 +175,7 @@ export function YarnString({
           d={path}
           fill="none"
           stroke="transparent"
-          strokeWidth={18}
+          strokeWidth={16}
           strokeLinecap="round"
           className={isNoteHovered ? "pointer-events-none" : "pointer-events-auto cursor-pointer"}
         />
@@ -186,19 +186,19 @@ export function YarnString({
             d={path}
             fill="none"
             stroke={colors.light}
-            strokeWidth={7}
+            strokeWidth={isSelected ? 5.5 : 4.5}
             strokeLinecap="round"
             strokeOpacity={0.45}
             className="pointer-events-none animate-pulse"
           />
         )}
 
-        {/* 4. Main Textured Yarn Core */}
+        {/* 4. Main Textured Yarn Core (Thinned for realistic twine/thread appearance) */}
         <path
           d={path}
           fill="none"
           stroke={colors.main}
-          strokeWidth={isSelected ? 3.5 : 2.8}
+          strokeWidth={isSelected ? 2.4 : 1.75}
           strokeLinecap="round"
           className="pointer-events-none transition-all duration-150"
         />
@@ -208,7 +208,7 @@ export function YarnString({
           d={path}
           fill="none"
           stroke={colors.light}
-          strokeWidth={1.1}
+          strokeWidth={0.7}
           strokeDasharray="4 3"
           strokeLinecap="round"
           strokeOpacity={0.65}
@@ -220,7 +220,7 @@ export function YarnString({
           d={path}
           fill="none"
           stroke={colors.dark}
-          strokeWidth={0.8}
+          strokeWidth={0.5}
           strokeDasharray="2 5"
           strokeLinecap="round"
           strokeOpacity={0.5}
@@ -231,19 +231,19 @@ export function YarnString({
         <circle
           cx={startPoint.x}
           cy={startPoint.y}
-          r={3.5}
+          r={2.8}
           fill="none"
           stroke={colors.main}
-          strokeWidth={1.8}
+          strokeWidth={1.3}
           className="pointer-events-none"
         />
         <circle
           cx={endPoint.x}
           cy={endPoint.y}
-          r={3.5}
+          r={2.8}
           fill="none"
           stroke={colors.main}
-          strokeWidth={1.8}
+          strokeWidth={1.3}
           className="pointer-events-none"
         />
       </g>
@@ -403,18 +403,18 @@ export function LiveYarnStringPreview({
       <path
         d={path}
         fill="none"
-        stroke="rgba(0,0,0,0.3)"
-        strokeWidth={4}
+        stroke="rgba(0,0,0,0.25)"
+        strokeWidth={2.6}
         strokeLinecap="round"
-        transform="translate(2, 4)"
-        className="filter blur-[1.5px]"
+        transform="translate(1.5, 3)"
+        className="filter blur-[1px]"
       />
       {/* Glow */}
       <path
         d={path}
         fill="none"
         stroke={colors.light}
-        strokeWidth={6}
+        strokeWidth={4.5}
         strokeLinecap="round"
         strokeOpacity={0.5}
         className="animate-pulse"
@@ -424,7 +424,7 @@ export function LiveYarnStringPreview({
         d={path}
         fill="none"
         stroke={colors.main}
-        strokeWidth={3}
+        strokeWidth={1.8}
         strokeLinecap="round"
       />
       {/* Fiber highlights */}
@@ -432,7 +432,7 @@ export function LiveYarnStringPreview({
         d={path}
         fill="none"
         stroke={colors.light}
-        strokeWidth={1.2}
+        strokeWidth={0.7}
         strokeDasharray="4 3"
         strokeLinecap="round"
         strokeOpacity={0.7}

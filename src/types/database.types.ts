@@ -649,6 +649,7 @@ export type Database = {
           y: number;
           width: number;
           height?: number | null;
+          is_scratched?: boolean | null;
           rotation: number;
           z_index: number;
           created_at: string;
@@ -673,6 +674,7 @@ export type Database = {
           y?: number;
           width?: number;
           height?: number | null;
+          is_scratched?: boolean | null;
           rotation?: number;
           z_index?: number;
           created_at?: string;
@@ -697,6 +699,7 @@ export type Database = {
           y?: number;
           width?: number;
           height?: number | null;
+          is_scratched?: boolean | null;
           rotation?: number;
           z_index?: number;
           created_at?: string;

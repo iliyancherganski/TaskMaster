@@ -62,6 +62,7 @@ export interface IdeaNote {
   y: number;
   width: number;
   height?: number;
+  is_scratched?: boolean;
   rotation: number; // -4 to +4 degrees for organic physical look
   z_index: number;
   created_at: string;

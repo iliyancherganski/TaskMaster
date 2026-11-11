@@ -420,6 +420,7 @@ CREATE TABLE IF NOT EXISTS public."IdeaNotes" (
     y DOUBLE PRECISION NOT NULL DEFAULT 100,
     width DOUBLE PRECISION NOT NULL DEFAULT 300,
     height DOUBLE PRECISION,
+    is_scratched BOOLEAN DEFAULT FALSE,
     rotation DOUBLE PRECISION NOT NULL DEFAULT 0,
     z_index INT NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -428,6 +429,7 @@ CREATE TABLE IF NOT EXISTS public."IdeaNotes" (
 
 ALTER TABLE public."IdeaNotes" ADD COLUMN IF NOT EXISTS board_id UUID REFERENCES public."IdeaBoards"(id) ON DELETE CASCADE;
 ALTER TABLE public."IdeaNotes" ADD COLUMN IF NOT EXISTS height DOUBLE PRECISION;
+ALTER TABLE public."IdeaNotes" ADD COLUMN IF NOT EXISTS is_scratched BOOLEAN DEFAULT FALSE;
 
 -- 9.3 IdeaStrings table (Physical string connections between notes)
 CREATE TABLE IF NOT EXISTS public."IdeaStrings" (

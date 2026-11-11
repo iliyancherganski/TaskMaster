@@ -660,7 +660,42 @@ export function IdeaBoardView({
     setSelectedNoteIds(newNoteIds);
   }, [boardData, mouseBoardPos, pan, zoom, projectId, currentBoardId, pushUndoSnapshot]);
 
-  // Keyboard Shortcuts: Ctrl+Z (Undo), Ctrl+Y (Redo), Shift+F (Frame), Delete (Remove), Escape (Cancel)
+  // Toggle Scratch / Cross-out for Selected Notes (or a specific note)
+  const handleToggleScratchSelectedNotes = useCallback(
+    (targetNoteIds?: string[]) => {
+      const ids = targetNoteIds || selectedNoteIds;
+      if (ids.length === 0) return;
+
+      const targetNotes = boardData.notes.filter((n) => ids.includes(n.id));
+      if (targetNotes.length === 0) return;
+
+      // If all selected are scratched, unscratch them; otherwise scratch them
+      const allScratched = targetNotes.every((n) => n.is_scratched);
+      const nextScratchedState = !allScratched;
+
+      pushUndoSnapshot(boardData);
+
+      const updatedNotes = boardData.notes.map((n) =>
+        ids.includes(n.id)
+          ? {
+              ...n,
+              is_scratched: nextScratchedState,
+              updated_at: new Date().toISOString(),
+            }
+          : n
+      );
+
+      const nextData = {
+        ...boardData,
+        notes: updatedNotes,
+      };
+      setBoardData(nextData);
+      saveIdeaBoard(projectId, nextData, currentBoardId);
+    },
+    [selectedNoteIds, boardData, projectId, currentBoardId, pushUndoSnapshot]
+  );
+
+  // Keyboard Shortcuts: Ctrl+Z (Undo), Ctrl+Y (Redo), Shift+F (Frame), Delete (Remove), Escape (Cancel), - (Scratch)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // 1. Text field focus guard: if user is typing in any input/textarea, DO NOT touch!
@@ -770,6 +805,18 @@ export function IdeaBoardView({
         return;
       }
 
+      // Scratch / Cross-out Selected Notes: "-" or "_" or NumpadSubtract
+      if (
+        (e.key === "-" || e.key === "_" || code === "Minus" || code === "NumpadSubtract") &&
+        !isCtrlOrMeta
+      ) {
+        if (selectedNoteIds.length > 0) {
+          e.preventDefault();
+          handleToggleScratchSelectedNotes();
+          return;
+        }
+      }
+
       // Shift + F: Frame / focus on notes or tasks
       if (e.shiftKey && (key === "f" || code === "KeyF")) {
         e.preventDefault();
@@ -788,6 +835,7 @@ export function IdeaBoardView({
     duplicateSelectedNotes,
     copySelectedNotes,
     pasteCopiedNotes,
+    handleToggleScratchSelectedNotes,
     connectingSourceNoteId,
     pinDragSourceId,
     selectedNoteIds,
@@ -2139,23 +2187,39 @@ export function IdeaBoardView({
               >
                 {/* Solid white canvas background = 100% visible strings outside notes */}
                 <rect x="-10000" y="-10000" width="30000" height="30000" fill="white" />
-                {/* Over the hovered note: gray rect (#484848) dims opacity to ~28% (semi-transparent) */}
-                {activeMaskCard && (
-                  <g
-                    transform={`translate(${activeMaskCard.x}, ${activeMaskCard.y}) rotate(${activeMaskCard.rotation} ${activeMaskCard.width / 2} ${activeMaskCard.height / 2})`}
-                  >
-                    <rect
-                      x="0"
-                      y="0"
-                      width={activeMaskCard.width}
-                      height={activeMaskCard.height}
-                      rx="12"
-                      ry="12"
-                      fill={hoveredCardInfo ? "#484848" : "#ffffff"}
-                      style={{ transition: "fill 180ms ease" }}
-                    />
-                  </g>
-                )}
+                {/* Over notes: strings crossing any note are semi-transparent (~35% opacity), and become extra faint on hover */}
+                {boardData.notes.map((note) => {
+                  const isHovered = hoveredCardInfo?.id === note.id;
+                  const isMaskTarget = activeMaskCard?.id === note.id;
+                  const width =
+                    (isMaskTarget ? activeMaskCard?.width : undefined) ||
+                    (note.type === "board" ? 220 : note.width || 300);
+                  const height =
+                    (isMaskTarget ? activeMaskCard?.height : undefined) ||
+                    (note.type === "board"
+                      ? 220
+                      : note.height ||
+                        (note.type === "image" || note.type === "video" ? 300 : 250));
+                  const rot = note.rotation || 0;
+
+                  return (
+                    <g
+                      key={`mask-note-${note.id}`}
+                      transform={`translate(${note.x}, ${note.y}) rotate(${rot} ${width / 2} ${height / 2})`}
+                    >
+                      <rect
+                        x="0"
+                        y="0"
+                        width={width}
+                        height={height}
+                        rx="12"
+                        ry="12"
+                        fill={isHovered ? "#222222" : "#595959"}
+                        style={{ transition: "fill 180ms ease" }}
+                      />
+                    </g>
+                  );
+                })}
               </mask>
             </defs>
 
@@ -2258,6 +2322,7 @@ export function IdeaBoardView({
                     }}
                     onDelete={handleDeleteNote}
                     onDuplicate={handleDuplicateNote}
+                    onToggleScratch={(noteId) => handleToggleScratchSelectedNotes([noteId])}
                     onOpenTask={onOpenTask}
                     onOpenSubBoard={(subBoardId) => handleOpenSubBoard(subBoardId)}
                     onDeleteBoard={(subBoardId, boardName) => handleDeleteBoardRequest(subBoardId, boardName)}
@@ -2386,6 +2451,9 @@ export function IdeaBoardView({
               </li>
               <li>
                 <strong className="text-amber-800 dark:text-amber-200">🖼️ Instant Drag &amp; Drop:</strong> Drag images, videos, or web links directly onto the board or press <kbd className="bg-zinc-100 border dark:bg-white/10 px-1 py-0.5 rounded">Ctrl + V</kbd> to paste immediately without opening any modals.
+              </li>
+              <li>
+                <strong className="text-amber-800 dark:text-amber-200">✂️ Scratch / Cross-out (-):</strong> Select any note(s) and press <kbd className="bg-zinc-100 border dark:bg-white/10 px-1 py-0.5 rounded">-</kbd> to scratch them out (desaturates paper color and crosses out text to mark ideas as failed, completed, or irrelevant). Press <kbd className="bg-zinc-100 border dark:bg-white/10 px-1 py-0.5 rounded">-</kbd> again to unscratch.
               </li>
               <li>
                 <strong className="text-amber-800 dark:text-amber-200">📝 Edit Notes:</strong> Double-click any note card or click the pencil icon to edit formatting, content, or paper colors with full rich-text Markdown and dedicated Undo/Redo.

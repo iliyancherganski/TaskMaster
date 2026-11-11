@@ -34,6 +34,7 @@ import {
   Bookmark,
   Flame,
   ArrowRight,
+  Strikethrough,
 } from "lucide-react";
 import {
   extractYouTubeId,
@@ -86,6 +87,7 @@ interface IdeaNoteCardProps {
   onEdit?: (note: IdeaNote) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (note: IdeaNote) => void;
+  onToggleScratch?: (noteId: string) => void;
   onOpenTask?: (taskId: string) => void;
   onOpenSubBoard?: (boardId: string, boardName: string) => void;
   onDeleteBoard?: (boardId: string, boardName: string) => void;
@@ -178,6 +180,7 @@ export function IdeaNoteCard({
   onEdit,
   onDelete,
   onDuplicate,
+  onToggleScratch,
   onOpenTask,
   onOpenSubBoard,
   onDeleteBoard,
@@ -185,6 +188,7 @@ export function IdeaNoteCard({
 }: IdeaNoteCardProps) {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isCardHovered, setIsCardHovered] = useState(false);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const style = PAPER_STYLES[note.color] || PAPER_STYLES.yellow;
@@ -241,12 +245,18 @@ export function IdeaNoteCard({
     onEdit?.(note);
   };
 
+  const isHovering = isCardHovered && !isDragging;
+  const baseRotation = isDragging ? 0 : note.rotation || 0;
+  const scale = isDragging ? 1.02 : isHovering ? 1.025 : isTargetHighlight ? 1.03 : isSelected ? 1.01 : 1;
+  const translateY = isHovering ? -6 : 0;
+
   return (
     <div
       ref={cardRef}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       onMouseEnter={() => {
+        setIsCardHovered(true);
         if (!isConnectingSource) {
           onPinMouseEnter?.(note.id);
         }
@@ -263,6 +273,7 @@ export function IdeaNoteCard({
         });
       }}
       onMouseLeave={() => {
+        setIsCardHovered(false);
         onPinMouseLeave?.(note.id);
         onHoverCard?.(null);
       }}
@@ -272,13 +283,17 @@ export function IdeaNoteCard({
           onPinClick?.(note.id, e);
         }
       }}
-      className={`group absolute select-none transition-all duration-200 ${
-        isDragging ? "cursor-grabbing z-50 shadow-2xl scale-[1.02]" : "cursor-grab"
+      className={`group absolute select-none ${
+        isDragging ? "cursor-grabbing z-50" : "cursor-grab"
       } ${
         isTargetHighlight
-          ? "ring-4 ring-amber-400 ring-offset-4 ring-offset-[#eedbb8] shadow-[0_0_35px_rgba(245,158,11,0.7)] scale-[1.03] animate-pulse"
+          ? "ring-4 ring-amber-400 ring-offset-4 ring-offset-[#eedbb8] animate-pulse"
           : isSelected
-          ? "ring-4 ring-amber-600 ring-offset-2 ring-offset-[#eedbb8] shadow-2xl scale-[1.01]"
+          ? "ring-4 ring-amber-600 ring-offset-2 ring-offset-[#eedbb8]"
+          : ""
+      } ${
+        note.is_scratched
+          ? "opacity-75 grayscale-[0.7] contrast-[0.9] hover:opacity-95 hover:grayscale-[0.3]"
           : ""
       }`}
       style={{
@@ -286,8 +301,11 @@ export function IdeaNoteCard({
         top: `${note.y}px`,
         width: `${note.type === "board" ? 220 : note.width}px`,
         height: note.type === "board" ? "220px" : note.height ? `${note.height}px` : undefined,
-        zIndex: isDragging ? 9999 : note.z_index,
-        transform: `rotate(${isDragging ? 0 : note.rotation}deg)`,
+        zIndex: isDragging ? 9999 : isHovering ? (note.z_index || 1) + 25 : note.z_index,
+        transform: `translate3d(0, ${translateY}px, 0) rotate(${baseRotation}deg) scale(${scale})`,
+        transition: isDragging
+          ? "none"
+          : "transform 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms ease",
       }}
     >
       {/* Target Flash / Highlight Badge when jumping from Kanban */}
@@ -333,7 +351,11 @@ export function IdeaNoteCard({
 
       {/* Main Physical Note Body */}
       <div
-        className={`relative rounded-xl border ${style.border} ${style.bg} ${style.text} overflow-hidden shadow-[0_10px_25px_-5px_rgba(0,0,0,0.3),0_4px_10px_rgba(0,0,0,0.15)] transition-all ${
+        className={`relative rounded-xl border ${style.border} ${style.bg} ${style.text} overflow-hidden ${
+          isHovering
+            ? "shadow-[0_24px_45px_-8px_rgba(0,0,0,0.42),0_12px_22px_-5px_rgba(0,0,0,0.22)] ring-1 ring-amber-500/35"
+            : "shadow-[0_10px_25px_-5px_rgba(0,0,0,0.3),0_4px_10px_rgba(0,0,0,0.15)]"
+        } transition-shadow duration-200 ${
           note.type === "board"
             ? "h-full flex flex-col justify-between"
             : note.height
@@ -343,6 +365,30 @@ export function IdeaNoteCard({
       >
         {/* Subtle Paper Grain / Fiber Overlay */}
         <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:16px_16px]" />
+
+        {/* Scratched Overlay Simulation: Pen Scratch Strokes across the note */}
+        {note.is_scratched && (
+          <div className="absolute inset-0 pointer-events-none overflow-hidden z-25 flex items-center justify-center">
+            {/* Diagonal Realistic Red/Charcoal Pen Scratch Lines */}
+            <svg
+              className="absolute inset-0 w-full h-full opacity-45 dark:opacity-55"
+              preserveAspectRatio="none"
+              viewBox="0 0 100 100"
+            >
+              <path
+                d="M 4 22 Q 35 15 96 26 M 6 52 Q 50 47 94 54 M 5 82 Q 45 76 95 84"
+                stroke="currentColor"
+                strokeWidth="2.8"
+                strokeLinecap="round"
+                className="text-red-700/80 dark:text-red-400/80"
+                fill="none"
+              />
+            </svg>
+            <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded border border-red-500/50 bg-red-500/15 text-red-700 dark:text-red-300 text-[9px] font-black uppercase tracking-widest rotate-6 pointer-events-none select-none shadow-2xs">
+              Scratched
+            </div>
+          </div>
+        )}
 
         {/* Resize Handles (Requirement 4: stretch sideways and up/down) */}
         {note.type !== "board" && (
@@ -409,6 +455,23 @@ export function IdeaNoteCard({
                 >
                   <Link2 className="h-3.5 w-3.5" />
                 </button>
+                {onToggleScratch && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleScratch(note.id);
+                    }}
+                    className={`p-1 rounded-md text-xs font-semibold transition-all ${
+                      note.is_scratched
+                        ? "bg-red-500/20 text-red-600 dark:text-red-400 shadow-2xs"
+                        : "hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground"
+                    }`}
+                    title={note.is_scratched ? "Unscratch sub-board (-)" : "Scratch / cross-out sub-board (-)"}
+                  >
+                    <Strikethrough className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 {(onDeleteBoard || onDelete) && (
                   <button
                     type="button"
@@ -438,7 +501,13 @@ export function IdeaNoteCard({
                 )}
               </div>
               {/* Title (the board name) below it */}
-              <h4 className="font-extrabold text-sm text-foreground line-clamp-2 px-1 leading-snug">
+              <h4
+                className={`font-extrabold text-sm text-foreground line-clamp-2 px-1 leading-snug transition-all ${
+                  note.is_scratched
+                    ? "line-through decoration-red-600/90 decoration-[2.5px] text-muted-foreground/80"
+                    : ""
+                }`}
+              >
                 {note.title || "Untitled Board"}
               </h4>
             </div>
@@ -461,7 +530,13 @@ export function IdeaNoteCard({
             {/* Note Header / Drag Grip */}
             <div className="pt-5 px-3.5 pb-2 flex items-center justify-between gap-2 border-b border-black/5 dark:border-white/5">
               <div className="min-w-0 flex-1">
-                <h4 className="font-bold text-xs sm:text-sm tracking-tight truncate leading-tight">
+                <h4
+                  className={`font-bold text-xs sm:text-sm tracking-tight truncate leading-tight transition-all ${
+                    note.is_scratched
+                      ? "line-through decoration-red-600/90 decoration-[2.5px] text-muted-foreground/80 dark:decoration-red-400"
+                      : ""
+                  }`}
+                >
                   {note.title || "Untitled Note"}
                 </h4>
               </div>
@@ -484,6 +559,25 @@ export function IdeaNoteCard({
                 >
                   <Link2 className="h-3.5 w-3.5" />
                 </button>
+
+                {/* Scratch / Unscratch Note */}
+                {onToggleScratch && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleScratch(note.id);
+                    }}
+                    className={`p-1 rounded-md text-xs font-semibold transition-all ${
+                      note.is_scratched
+                        ? "bg-red-500/20 text-red-600 dark:text-red-400 shadow-2xs"
+                        : "hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground"
+                    }`}
+                    title={note.is_scratched ? "Unscratch note (-)" : "Scratch / cross-out note (-)"}
+                  >
+                    <Strikethrough className="h-3.5 w-3.5" />
+                  </button>
+                )}
 
                 {/* Edit Note */}
                 <button
@@ -639,7 +733,13 @@ export function IdeaNoteCard({
 
           {/* Formatted Markdown Content */}
           {note.content && note.content.trim() && (
-            <div className="leading-relaxed font-sans text-xs max-h-[280px] overflow-y-auto pr-1">
+            <div
+              className={`leading-relaxed font-sans text-xs max-h-[280px] overflow-y-auto pr-1 transition-all ${
+                note.is_scratched
+                  ? "line-through decoration-zinc-500/70 opacity-70 italic"
+                  : ""
+              }`}
+            >
               <MarkdownRenderer content={note.content} renderUntaggedAttachments={false} />
             </div>
           )}
