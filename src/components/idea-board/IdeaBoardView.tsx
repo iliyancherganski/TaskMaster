@@ -15,6 +15,7 @@ import {
   loadIdeaBoard,
   fetchIdeaBoardFromDb,
   saveIdeaBoard,
+  saveIdeaBoardToDb,
   resetIdeaBoard,
   generateInitialProjectBoard,
   uploadIdeaAttachment,
@@ -741,7 +742,7 @@ export function IdeaBoardView({
   // Toggle Scratch / Cross-out for Selected Notes (or a specific note)
   const handleToggleScratchSelectedNotes = useCallback(
     (targetNoteIds?: string[]) => {
-      const ids = targetNoteIds || selectedNoteIds;
+      const ids = targetNoteIds && targetNoteIds.length > 0 ? targetNoteIds : selectedNoteIds;
       if (ids.length === 0) return;
 
       const targetNotes = boardData.notes.filter((n) => ids.includes(n.id));
@@ -753,12 +754,13 @@ export function IdeaBoardView({
 
       pushUndoSnapshot(boardData);
 
+      const nowIso = new Date().toISOString();
       const updatedNotes = boardData.notes.map((n) =>
         ids.includes(n.id)
           ? {
               ...n,
               is_scratched: nextScratchedState,
-              updated_at: new Date().toISOString(),
+              updated_at: nowIso,
             }
           : n
       );
@@ -769,6 +771,7 @@ export function IdeaBoardView({
       };
       setBoardData(nextData);
       saveIdeaBoard(projectId, nextData, currentBoardId);
+      saveIdeaBoardToDb(projectId, nextData, currentBoardId).catch(() => {});
     },
     [selectedNoteIds, boardData, projectId, currentBoardId, pushUndoSnapshot]
   );
@@ -1428,13 +1431,13 @@ export function IdeaBoardView({
           });
           if (hasMoved) {
             pushUndoSnapshot(dragStartBoardSnapshotRef.current);
+            saveIdeaBoard(projectId, boardData, currentBoardId);
           }
           dragStartBoardSnapshotRef.current = null;
         }
         setDraggingNoteId(null);
         setDragSelectedInitialPositions(null);
         setDragStartBoardPos(null);
-        saveIdeaBoard(projectId, boardData, currentBoardId);
       }
       if (isMarqueeSelecting) {
         setIsMarqueeSelecting(false);
@@ -1882,13 +1885,13 @@ export function IdeaBoardView({
         });
         if (hasMoved) {
           pushUndoSnapshot(dragStartBoardSnapshotRef.current);
+          saveIdeaBoard(projectId, boardData, currentBoardId);
         }
         dragStartBoardSnapshotRef.current = null;
       }
       setDraggingNoteId(null);
       setDragSelectedInitialPositions(null);
       setDragStartBoardPos(null);
-      saveIdeaBoard(projectId, boardData, currentBoardId);
       return;
     }
 

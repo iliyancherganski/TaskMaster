@@ -850,6 +850,35 @@ export async function fetchIdeaBoardFromDb(
       const defaultWidth = n.type === "board" ? 220 : 300;
       const width = typeof n.width === "number" && !isNaN(n.width) && n.width >= 150 ? n.width : defaultWidth;
 
+      const cachedNote = localCached.notes.find((cn) => cn.id === n.id);
+
+      // Robust scratch state determination:
+      // 1. If DB returns a boolean: check if localCached has a newer or equal updated_at timestamp.
+      //    If localCached is newer or equal and has is_scratched, prefer local!
+      // 2. If DB returns null or undefined (e.g. column not yet migrated in Supabase, or null in row):
+      //    Gracefully fallback to cachedNote.is_scratched!
+      let isScratched = false;
+      const rawDbScratched = (n as any).is_scratched;
+      if (rawDbScratched !== undefined && rawDbScratched !== null) {
+        isScratched = Boolean(rawDbScratched);
+        if (cachedNote && typeof cachedNote.is_scratched === "boolean") {
+          const localTime = cachedNote.updated_at ? new Date(cachedNote.updated_at).getTime() : 0;
+          const dbTime = n.updated_at ? new Date(n.updated_at).getTime() : 0;
+          if (localTime >= dbTime) {
+            isScratched = cachedNote.is_scratched;
+          }
+        }
+      } else if (cachedNote && typeof cachedNote.is_scratched === "boolean") {
+        isScratched = cachedNote.is_scratched;
+      }
+
+      // Height fallback from local cache if DB has null/undefined
+      const rawDbHeight = (n as any).height;
+      const height =
+        typeof rawDbHeight === "number" && !isNaN(rawDbHeight)
+          ? rawDbHeight
+          : (typeof cachedNote?.height === "number" && !isNaN(cachedNote.height) ? cachedNote.height : undefined);
+
       return {
         id: n.id,
         project_id: n.project_id,
@@ -868,12 +897,14 @@ export async function fetchIdeaBoardFromDb(
         x,
         y,
         width,
-        height: typeof (n as any).height === "number" && !isNaN((n as any).height) ? (n as any).height : undefined,
-        is_scratched: Boolean((n as any).is_scratched),
+        height,
+        is_scratched: isScratched,
         rotation: typeof n.rotation === "number" && !isNaN(n.rotation) ? n.rotation : 0,
         z_index: typeof n.z_index === "number" ? n.z_index : 1,
         created_at: n.created_at,
-        updated_at: n.updated_at,
+        updated_at: cachedNote?.updated_at && (!n.updated_at || new Date(cachedNote.updated_at).getTime() > new Date(n.updated_at).getTime())
+          ? cachedNote.updated_at
+          : n.updated_at,
       };
     });
 
@@ -894,6 +925,14 @@ export async function fetchIdeaBoardFromDb(
     if (mappedNotes.length === 0 && localCached.notes.length > 0) {
       saveIdeaBoardToDb(projectId, localCached, boardId).catch(() => {});
       return localCached;
+    }
+
+    // Merge any locally created notes that haven't hit DB yet
+    const localOnlyNotes = localCached.notes.filter(
+      (cn) => !mappedNotes.some((mn) => mn.id === cn.id)
+    );
+    if (localOnlyNotes.length > 0) {
+      mappedNotes.push(...localOnlyNotes);
     }
 
     const theme = (boardDataRow?.theme as BoardTheme) || localCached.theme || "cork";
@@ -1071,7 +1110,7 @@ export async function saveIdeaBoardToDb(
       is_scratched: Boolean(n.is_scratched),
       rotation: typeof n.rotation === "number" && !isNaN(n.rotation) ? n.rotation : 0,
       z_index: typeof n.z_index === "number" ? n.z_index : 1,
-      updated_at: new Date().toISOString(),
+      updated_at: n.updated_at || new Date().toISOString(),
     }));
 
     if (noteInserts.length > 0) {
