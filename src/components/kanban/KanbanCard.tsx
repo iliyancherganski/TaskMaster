@@ -172,8 +172,11 @@ export function KanbanCard({
           {isLinkedToIdeaBoard && (
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
+                e.preventDefault();
                 onNavigateToIdeaBoard?.(task.id);
               }}
               className="absolute top-2 left-2 z-20 flex items-center justify-center h-6 w-6 rounded-full bg-amber-400/95 hover:bg-amber-300 text-amber-950 shadow-md ring-1 ring-amber-500/80 hover:scale-115 active:scale-95 transition-all cursor-pointer"
@@ -193,8 +196,11 @@ export function KanbanCard({
             {!coverImageUrl && isLinkedToIdeaBoard && (
               <button
                 type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   onNavigateToIdeaBoard?.(task.id);
                 }}
                 className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-400 hover:bg-amber-300 text-amber-950 shadow-xs ring-1 ring-amber-500/60 hover:scale-115 active:scale-95 transition-all cursor-pointer shrink-0"
@@ -267,6 +273,7 @@ export function KanbanCard({
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation();
+                    e.preventDefault();
                     if (isLinkedToIdeaBoard) {
                       onNavigateToIdeaBoard?.(task.id);
                     } else {

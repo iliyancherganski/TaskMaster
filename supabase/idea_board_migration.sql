@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS public."IdeaNotes" (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     project_id UUID REFERENCES public."Projects"(id) ON DELETE CASCADE,
     board_id UUID REFERENCES public."IdeaBoards"(id) ON DELETE CASCADE,
+    sub_board_id UUID,
+    icon TEXT,
     type TEXT NOT NULL DEFAULT 'text',
     title TEXT NOT NULL DEFAULT 'New Idea',
     content TEXT DEFAULT '',

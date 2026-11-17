@@ -9,6 +9,7 @@ import {
   BoardTheme,
   IdeaStringColor,
   IdeaPaperColor,
+  IdeaPinColor,
 } from "@/types/idea-board.types";
 import {
   loadIdeaBoard,
@@ -21,7 +22,9 @@ import {
   getSubboardsFromCache,
   saveSubboardsToCache,
   createSubboard,
+  updateSubboard,
   deleteSubboard,
+  generateIdeaId,
 } from "@/lib/idea-board-storage";
 import { IdeaNoteCard, HoveredCardInfo } from "./IdeaNoteCard";
 import { YarnString, LiveYarnStringPreview, YARN_COLORS } from "./YarnString";
@@ -54,6 +57,7 @@ import {
   Folder,
   ArrowLeft,
   Copy,
+  Pencil,
 } from "lucide-react";
 
 const SUBBOARD_ICON_MAP: Record<string, any> = {
@@ -81,6 +85,7 @@ interface IdeaBoardViewProps {
   linkTaskTrigger?: number;
   newBoardTrigger?: number;
   targetTaskId?: string | null;
+  onTargetTaskHandled?: () => void;
   onLinkedTasksChange?: (taskIds: Set<string>) => void;
 }
 
@@ -140,16 +145,25 @@ export function IdeaBoardView({
   linkTaskTrigger,
   newBoardTrigger,
   targetTaskId,
+  onTargetTaskHandled,
   onLinkedTasksChange,
 }: IdeaBoardViewProps) {
-  // Active Sub-board navigation state (null = root project board)
-  const [currentBoardId, setCurrentBoardId] = useState<string | null>(null);
+  // Active Sub-board navigation state (null = root project board, or initialized from ?board= URL param)
+  const [currentBoardId, setCurrentBoardId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("board") || null;
+    }
+    return null;
+  });
   const [subboards, setSubboards] = useState<IdeaBoardItem[]>(() =>
     getSubboardsFromCache(projectId)
   );
 
-  // New Sub-board Modal & Deletion states
+  // New / Edit Sub-board Modal & Deletion states
   const [isNewBoardModalOpen, setIsNewBoardModalOpen] = useState(false);
+  const [editingBoardNote, setEditingBoardNote] = useState<IdeaNote | null>(null);
+  const [isEditingCurrentBoard, setIsEditingCurrentBoard] = useState(false);
   const [boardToDelete, setBoardToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // Clipboard buffer for Copy (Ctrl+C) / Paste (Ctrl+V)
@@ -322,9 +336,73 @@ export function IdeaBoardView({
   const [redoStack, setRedoStack] = useState<IdeaBoardData[]>([]);
   const dragStartBoardSnapshotRef = useRef<IdeaBoardData | null>(null);
 
-  // Reset to root board when switching projects
+  // Navigate to a board or sub-board and sync with URL & browser history
+  const navigateToBoard = useCallback(
+    (boardId: string | null, pushHistory = true) => {
+      setCurrentBoardId((prev) => {
+        if (prev === boardId) return prev;
+        return boardId;
+      });
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.set("view", "ideas");
+        if (projectId && projectId !== "all") {
+          url.searchParams.set("project", projectId);
+        } else {
+          url.searchParams.delete("project");
+        }
+        if (boardId) {
+          url.searchParams.set("board", boardId);
+        } else {
+          url.searchParams.delete("board");
+        }
+        const nextUrl = url.pathname + url.search;
+        if (pushHistory && window.location.pathname + window.location.search !== nextUrl) {
+          window.history.pushState(
+            { view: "ideas", projectId, boardId },
+            "",
+            nextUrl
+          );
+        } else {
+          window.history.replaceState(
+            { view: "ideas", projectId, boardId },
+            "",
+            nextUrl
+          );
+        }
+      }
+    },
+    [projectId]
+  );
+
+  // Listen to browser Back / Forward buttons (popstate) to step through board hierarchy
   useEffect(() => {
-    setCurrentBoardId(null);
+    if (typeof window === "undefined") return;
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const boardParam = params.get("board") || null;
+      setCurrentBoardId(boardParam);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Reset to root board when switching projects (unless URL explicitly specifies a board on initial load)
+  const prevProjectIdRef = useRef<string | null | undefined>(projectId);
+  useEffect(() => {
+    if (prevProjectIdRef.current !== projectId) {
+      prevProjectIdRef.current = projectId;
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const urlProject = params.get("project") || "all";
+        const urlBoard = params.get("board") || null;
+        if (urlBoard && urlProject === (projectId || "all")) {
+          setCurrentBoardId(urlBoard);
+          return;
+        }
+      }
+      setCurrentBoardId(null);
+    }
   }, [projectId]);
 
   // Re-load board cleanly whenever projectId OR currentBoardId changes (Local Cache + Supabase DB)
@@ -584,7 +662,7 @@ export function IdeaBoardView({
     const newNoteIds: string[] = [];
 
     const duplicatedNotes: IdeaNote[] = notesToDuplicate.map((n, idx) => {
-      const newId = `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}-${idx}`;
+      const newId = generateIdeaId();
       newNoteIds.push(newId);
       return {
         ...n,
@@ -592,7 +670,7 @@ export function IdeaBoardView({
         title: n.title.endsWith("(Copy)") ? n.title : `${n.title} (Copy)`,
         x: n.x + 35,
         y: n.y + 35,
-        rotation: +(Math.random() * 4 - 2).toFixed(1),
+        rotation: 0,
         z_index: curMaxZ + idx + 1,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -634,7 +712,7 @@ export function IdeaBoardView({
     const offsetY = targetY - minY;
 
     const pastedNotes: IdeaNote[] = copiedNotesRef.current.map((n, idx) => {
-      const newId = `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}-${idx}`;
+      const newId = generateIdeaId();
       newNoteIds.push(newId);
       return {
         ...n,
@@ -643,7 +721,7 @@ export function IdeaBoardView({
         board_id: currentBoardId,
         x: n.x + offsetX,
         y: n.y + offsetY,
-        rotation: +(Math.random() * 4 - 2).toFixed(1),
+        rotation: 0,
         z_index: curMaxZ + idx + 1,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -772,6 +850,19 @@ export function IdeaBoardView({
         }
       }
 
+      // Select All Notes on Board: 'a' or 'A' (or Ctrl+A) - Requirement 4
+      if (
+        (key === "a" || code === "KeyA" || key === "ф") &&
+        !e.shiftKey &&
+        !e.altKey
+      ) {
+        if (boardData.notes.length > 0) {
+          e.preventDefault();
+          setSelectedNoteIds(boardData.notes.map((n) => n.id));
+          return;
+        }
+      }
+
       // Delete or Backspace: Delete selected notes or selected connection
       if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedNoteIds.length > 0) {
@@ -841,6 +932,7 @@ export function IdeaBoardView({
     selectedNoteIds,
     selectedConnectionId,
     isNoteModalOpen,
+    boardData.notes,
   ]);
 
   // Frame view ONCE on initial load or project switch (NEVER on selecting notes!)
@@ -902,8 +994,9 @@ export function IdeaBoardView({
   }, [projectId, boardData.notes]);
 
   // Open note modal from external "+ Pin Note" trigger in filter bar
+  const prevPinNoteTriggerRef = useRef(pinNoteTrigger);
   useEffect(() => {
-    if (pinNoteTrigger && pinNoteTrigger > 0) {
+    if (pinNoteTrigger && pinNoteTrigger > (prevPinNoteTriggerRef.current || 0)) {
       const container = containerRef.current;
       const width = container ? container.clientWidth : 800;
       const height = container ? container.clientHeight : 600;
@@ -919,34 +1012,139 @@ export function IdeaBoardView({
       setPendingConnectSourceId(null);
       setIsNoteModalOpen(true);
     }
+    prevPinNoteTriggerRef.current = pinNoteTrigger;
   }, [pinNoteTrigger, clientToBoardCoords]);
 
   // Open Task Picker from external "+ Link Task" trigger in filter bar
+  const prevLinkTaskTriggerRef = useRef(linkTaskTrigger);
   useEffect(() => {
-    if (linkTaskTrigger && linkTaskTrigger > 0) {
+    if (linkTaskTrigger && linkTaskTrigger > (prevLinkTaskTriggerRef.current || 0)) {
       setIsLinkTaskModalOpen(true);
     }
+    prevLinkTaskTriggerRef.current = linkTaskTrigger;
   }, [linkTaskTrigger]);
 
   // Open New Board Modal from external "+ New Board" trigger in filter bar
+  const prevNewBoardTriggerRef = useRef(newBoardTrigger);
   useEffect(() => {
-    if (newBoardTrigger && newBoardTrigger > 0) {
+    if (newBoardTrigger && newBoardTrigger > (prevNewBoardTriggerRef.current || 0)) {
+      setEditingBoardNote(null);
+      setIsEditingCurrentBoard(false);
       setIsNewBoardModalOpen(true);
     }
+    prevNewBoardTriggerRef.current = newBoardTrigger;
   }, [newBoardTrigger]);
 
-  // Create Sub-Board (Requirement 4)
+  // Create or Edit Sub-Board (Requirement 4 & OTHER 1: Board coloring & name editing)
   const handleCreateSubboard = async (data: {
     name: string;
     icon?: string;
     theme?: BoardTheme;
+    color?: IdeaPaperColor;
+    pin_color?: IdeaPinColor;
   }) => {
+    // 1. Editing an existing Sub-Board card on the current board
+    if (editingBoardNote) {
+      const subBoardId = editingBoardNote.sub_board_id || editingBoardNote.id;
+      const updatedSub = await updateSubboard(projectId, subBoardId, {
+        name: data.name,
+        icon: data.icon,
+        color: data.color,
+        pin_color: data.pin_color,
+        theme: data.theme,
+      });
+
+      if (updatedSub) {
+        setSubboards((prev) => {
+          const exists = prev.some((b) => b.id === subBoardId);
+          return exists
+            ? prev.map((b) => (b.id === subBoardId ? updatedSub : b))
+            : [...prev, updatedSub];
+        });
+      }
+
+      const updatedNotes = boardData.notes.map((n) =>
+        n.id === editingBoardNote.id
+          ? {
+              ...n,
+              title: data.name.trim(),
+              icon: data.icon || n.icon || "folder",
+              color: data.color || n.color || "kraft",
+              pin_color: data.pin_color || n.pin_color || "gold",
+              updated_at: new Date().toISOString(),
+            }
+          : n
+      );
+
+      updateBoard({
+        ...boardData,
+        notes: updatedNotes,
+      });
+
+      setEditingBoardNote(null);
+      setIsNewBoardModalOpen(false);
+      return;
+    }
+
+    // 2. Editing the currently opened Sub-Board from the breadcrumb header
+    if (isEditingCurrentBoard && currentBoardId) {
+      const updatedSub = await updateSubboard(projectId, currentBoardId, {
+        name: data.name,
+        icon: data.icon,
+        color: data.color,
+        pin_color: data.pin_color,
+        theme: data.theme,
+      });
+
+      if (updatedSub) {
+        setSubboards((prev) => {
+          const exists = prev.some((b) => b.id === currentBoardId);
+          return exists
+            ? prev.map((b) => (b.id === currentBoardId ? updatedSub : b))
+            : [...prev, updatedSub];
+        });
+
+        // Also update the board card on the parent board so it stays in sync
+        const parentId = updatedSub.parent_board_id || null;
+        const parentBoard = loadIdeaBoard(projectId, parentId);
+        const updatedParentNotes = parentBoard.notes.map((n) =>
+          n.sub_board_id === currentBoardId || n.id === currentBoardId
+            ? {
+                ...n,
+                title: data.name.trim(),
+                icon: data.icon || n.icon || "folder",
+                color: data.color || n.color || "kraft",
+                pin_color: data.pin_color || n.pin_color || "gold",
+                updated_at: new Date().toISOString(),
+              }
+            : n
+        );
+        saveIdeaBoard(
+          projectId,
+          { ...parentBoard, notes: updatedParentNotes },
+          parentId
+        );
+      }
+
+      setBoardData((prev) => ({
+        ...prev,
+        name: data.name.trim(),
+      }));
+
+      setIsEditingCurrentBoard(false);
+      setIsNewBoardModalOpen(false);
+      return;
+    }
+
+    // 3. Creating a brand new Sub-Board
     const newBoard = await createSubboard(
       projectId,
       data.name,
       currentBoardId,
       data.icon,
-      data.theme
+      data.theme,
+      data.color || "kraft",
+      data.pin_color || "gold"
     );
 
     // Refresh subboards list
@@ -963,7 +1161,7 @@ export function IdeaBoardView({
 
     const curMaxZ = Math.max(...boardData.notes.map((n) => n.z_index), 1);
     const boardNote: IdeaNote = {
-      id: `board-note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: generateIdeaId(),
       project_id: projectId && projectId !== "all" ? projectId : null,
       board_id: currentBoardId,
       sub_board_id: newBoard.id,
@@ -971,12 +1169,12 @@ export function IdeaBoardView({
       title: newBoard.name,
       content: "",
       icon: newBoard.icon || "folder",
-      color: "yellow",
-      pin_color: "gold",
+      color: data.color || "kraft",
+      pin_color: data.pin_color || "gold",
       x: Math.max(50, Math.round(centerBoard.x - 110 + (Math.random() * 40 - 20))),
       y: Math.max(50, Math.round(centerBoard.y - 110 + (Math.random() * 40 - 20))),
       width: 220,
-      rotation: +(Math.random() * 3 - 1.5).toFixed(1),
+      rotation: 0,
       z_index: curMaxZ + 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -991,14 +1189,14 @@ export function IdeaBoardView({
     setIsNewBoardModalOpen(false);
   };
 
-  // Open Sub-Board (Requirement 4)
+  // Open Sub-Board (pushes unique sub-board URL link to browser history)
   const handleOpenSubBoard = (boardId: string) => {
-    setCurrentBoardId(boardId);
+    navigateToBoard(boardId, true);
   };
 
-  // Navigate to Breadcrumb Step (Requirement 4)
+  // Navigate to Breadcrumb Step (pushes board URL link to browser history)
   const handleNavigateToBoard = (boardId: string | null) => {
-    setCurrentBoardId(boardId);
+    navigateToBoard(boardId, true);
   };
 
   // Request Delete Sub-board (Requirement 4: Confirm popup)
@@ -1036,19 +1234,41 @@ export function IdeaBoardView({
 
     // If currently inside the deleted board, navigate up
     if (currentBoardId === boardId) {
-      setCurrentBoardId(null);
+      const parentId = boardPath.length >= 2 ? boardPath[boardPath.length - 2].id : null;
+      navigateToBoard(parentId, true);
     }
 
     setBoardToDelete(null);
   };
 
   // Jump to and center on target task note when opened via Kanban lightbulb
+  const lastFocusedTargetTaskIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!targetTaskId) return;
+    if (!targetTaskId) {
+      lastFocusedTargetTaskIdRef.current = null;
+      return;
+    }
+    if (lastFocusedTargetTaskIdRef.current === targetTaskId) {
+      return;
+    }
 
-    // Find note linked to this task
-    const note = boardData.notes.find((n) => n.task_id === targetTaskId);
+    // Find note linked to this task on the current board
+    let note = boardData.notes.find((n) => n.task_id === targetTaskId);
+    if (!note) {
+      // Check if note is inside one of the subboards
+      for (const sb of subboards) {
+        const sbData = loadIdeaBoard(projectId, sb.id);
+        const sbNote = sbData.notes.find((n) => n.task_id === targetTaskId);
+        if (sbNote) {
+          lastFocusedTargetTaskIdRef.current = targetTaskId;
+          navigateToBoard(sb.id, true);
+          return;
+        }
+      }
+    }
+
     if (note && containerRef.current) {
+      lastFocusedTargetTaskIdRef.current = targetTaskId;
       const container = containerRef.current;
       const viewWidth = container.clientWidth || window.innerWidth;
       const viewHeight = container.clientHeight || (window.innerHeight - 116);
@@ -1064,14 +1284,14 @@ export function IdeaBoardView({
       panRef.current = { x: newPanX, y: newPanY };
       zoomRef.current = targetZoom;
 
+      // Only mark the task note as selected cleanly (no extra windows, no animation)
       setSelectedNoteIds([note.id]);
-      setTargetHighlightNoteId(note.id);
-      const timer = setTimeout(() => {
-        setTargetHighlightNoteId(null);
-      }, 4000);
-      return () => clearTimeout(timer);
+      setTargetHighlightNoteId(null);
+
+      // Cleanly clear targetTaskId in parent so it does not loop or bug out
+      onTargetTaskHandled?.();
     }
-  }, [targetTaskId, boardData.notes]);
+  }, [targetTaskId, boardData.notes, subboards, projectId, onTargetTaskHandled]);
 
   // Direct Pin Task as Note on Board
   const handleDirectLinkTask = useCallback(
@@ -1085,7 +1305,7 @@ export function IdeaBoardView({
       );
 
       const curMaxZ = Math.max(...boardData.notes.map((n) => n.z_index), 1);
-      const newNoteId = `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      const newNoteId = generateIdeaId();
 
       const newNote: IdeaNote = {
         id: newNoteId,
@@ -1099,7 +1319,7 @@ export function IdeaBoardView({
         x: Math.max(50, Math.round(centerBoard.x - 160 + (Math.random() * 40 - 20))),
         y: Math.max(50, Math.round(centerBoard.y - 80 + (Math.random() * 40 - 20))),
         width: 320,
-        rotation: +(Math.random() * 4 - 2).toFixed(1),
+        rotation: 0,
         z_index: curMaxZ + 1,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -1262,7 +1482,7 @@ export function IdeaBoardView({
           const fileUrl = await uploadIdeaAttachment(file);
           const curMaxZ = Math.max(...boardData.notes.map((n) => n.z_index), 1);
           const newNote: IdeaNote = {
-            id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: generateIdeaId(),
             project_id: projectId && projectId !== "all" ? projectId : null,
             type: "image",
             title: "Pasted Image",
@@ -1274,7 +1494,7 @@ export function IdeaBoardView({
             x: pasteCoords.x - 140,
             y: pasteCoords.y - 20,
             width: 300,
-            rotation: +(Math.random() * 4 - 2).toFixed(1),
+            rotation: 0,
             z_index: curMaxZ + 1,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -1300,7 +1520,7 @@ export function IdeaBoardView({
 
         const curMaxZ = Math.max(...boardData.notes.map((n) => n.z_index), 1);
         const newNote: IdeaNote = {
-          id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: generateIdeaId(),
           project_id: projectId && projectId !== "all" ? projectId : null,
           type: isImg ? "image" : isVid ? "video" : isUrl ? "link" : "text",
           title: isUrl
@@ -1317,7 +1537,7 @@ export function IdeaBoardView({
           x: pasteCoords.x - 140,
           y: pasteCoords.y - 20,
           width: 300,
-          rotation: +(Math.random() * 4 - 2).toFixed(1),
+          rotation: 0,
           z_index: curMaxZ + 1,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -1354,7 +1574,7 @@ export function IdeaBoardView({
       if (!exists) {
         const fromNote = boardData.notes.find((n) => n.id === fromId);
         const newConn: IdeaStringConnection = {
-          id: `string-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: generateIdeaId(),
           project_id: projectId || null,
           from_note_id: fromId,
           to_note_id: toId,
@@ -1553,14 +1773,25 @@ export function IdeaBoardView({
         ...prev,
         notes: prev.notes.map((n) => {
           if (n.id !== resizingNote.noteId) return n;
+          const isTitleOnly =
+            !n.content?.trim() && !n.file_url && !(n.type === "task" && n.task_id);
           const newWidth =
             resizingNote.direction === "vertical"
               ? n.width
-              : Math.max(180, Math.min(800, resizingNote.initialWidth + deltaX));
-          const newHeight =
-            resizingNote.direction === "horizontal"
-              ? (n.height || 220)
-              : Math.max(120, Math.min(1000, resizingNote.initialHeight + deltaY));
+              : Math.max(160, Math.min(1200, resizingNote.initialWidth + deltaX));
+
+          let newHeight = n.height;
+          if (resizingNote.direction !== "horizontal") {
+            const targetH = Math.round(resizingNote.initialHeight + deltaY);
+            if (isTitleOnly && targetH <= 64) {
+              // Allow shrinking a title-only note all the way back to its compact natural height
+              newHeight = undefined;
+            } else {
+              const minH = isTitleOnly ? 44 : 60;
+              newHeight = Math.max(minH, Math.min(4000, targetH));
+            }
+          }
+
           return {
             ...n,
             width: newWidth,
@@ -1765,12 +1996,13 @@ export function IdeaBoardView({
       });
       setEditingNote(null);
     } else {
-      const newNoteId = `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      const newNoteId = generateIdeaId();
       const newNote: IdeaNote = {
         id: newNoteId,
         project_id: projectId && projectId !== "all" ? projectId : null,
+        board_id: currentBoardId,
         type: noteData.type || "text",
-        title: noteData.title || "New Idea",
+        title: noteData.title ?? "",
         content: noteData.content || "",
         file_url: noteData.file_url || null,
         file_name: noteData.file_name || null,
@@ -1780,7 +2012,7 @@ export function IdeaBoardView({
         x: noteData.x ?? clickCoords.x,
         y: noteData.y ?? clickCoords.y,
         width: 320,
-        rotation: +(Math.random() * 4 - 2).toFixed(1),
+        rotation: 0,
         z_index: Math.max(...boardData.notes.map((n) => n.z_index), 1) + 1,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -1791,8 +2023,9 @@ export function IdeaBoardView({
       if (pendingConnectSourceId) {
         const fromNote = boardData.notes.find((n) => n.id === pendingConnectSourceId);
         const autoString: IdeaStringConnection = {
-          id: `string-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: generateIdeaId(),
           project_id: projectId || null,
+          board_id: currentBoardId,
           from_note_id: pendingConnectSourceId,
           to_note_id: newNoteId,
           color: fromNote?.pin_color === "gold" ? "twine" : "red",
@@ -1826,7 +2059,7 @@ export function IdeaBoardView({
   const handleDuplicateNote = (note: IdeaNote) => {
     const dup: IdeaNote = {
       ...note,
-      id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: generateIdeaId(),
       title: `${note.title} (Copy)`,
       x: note.x + 30,
       y: note.y + 30,
@@ -1884,8 +2117,9 @@ export function IdeaBoardView({
         const fileUrl = await uploadIdeaAttachment(file);
 
         const note: IdeaNote = {
-          id: `note-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+          id: generateIdeaId(),
           project_id: projectId && projectId !== "all" ? projectId : null,
+          board_id: currentBoardId,
           type: isImg ? "image" : isVid ? "video" : "file",
           title: file.name.replace(/\.[^/.]+$/, ""),
           content: "",
@@ -1896,7 +2130,7 @@ export function IdeaBoardView({
           x: Math.round(coords.x - 140 + i * 20),
           y: Math.round(coords.y - 20 + i * 20),
           width: 300,
-          rotation: +(Math.random() * 4 - 2).toFixed(1),
+          rotation: 0,
           z_index: ++curMaxZ,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -1923,8 +2157,9 @@ export function IdeaBoardView({
     if (imgFromHtml) {
       const curMaxZ = Math.max(...boardData.notes.map((n) => n.z_index), 1);
       const newNote: IdeaNote = {
-        id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        id: generateIdeaId(),
         project_id: projectId && projectId !== "all" ? projectId : null,
+        board_id: currentBoardId,
         type: "image",
         title: "Web Image",
         content: "",
@@ -1934,7 +2169,7 @@ export function IdeaBoardView({
         x: Math.round(coords.x - 140),
         y: Math.round(coords.y - 20),
         width: 300,
-        rotation: +(Math.random() * 4 - 2).toFixed(1),
+        rotation: 0,
         z_index: curMaxZ + 1,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -1963,8 +2198,9 @@ export function IdeaBoardView({
 
       const curMaxZ = Math.max(...boardData.notes.map((n) => n.z_index), 1);
       const newNote: IdeaNote = {
-        id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        id: generateIdeaId(),
         project_id: projectId && projectId !== "all" ? projectId : null,
+        board_id: currentBoardId,
         type: isImg ? "image" : isYt ? "video" : isUrl ? "link" : "text",
         title: isUrl
           ? isYt
@@ -1980,7 +2216,7 @@ export function IdeaBoardView({
         x: Math.round(coords.x - 140),
         y: Math.round(coords.y - 20),
         width: 300,
-        rotation: +(Math.random() * 4 - 2).toFixed(1),
+        rotation: 0,
         z_index: curMaxZ + 1,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -2076,13 +2312,15 @@ export function IdeaBoardView({
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
-                handleNavigateToBoard(null);
+                const parentId =
+                  boardPath.length >= 2 ? boardPath[boardPath.length - 2].id : null;
+                handleNavigateToBoard(parentId);
               }}
               className="flex items-center gap-1 px-2.5 py-1 mr-1 rounded-md bg-amber-600 hover:bg-amber-500 active:scale-95 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
-              title="Return to Root / Main Board"
+              title="Go back one level in board hierarchy"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Root</span>
+              <span>Back</span>
             </button>
           )}
 
@@ -2094,23 +2332,41 @@ export function IdeaBoardView({
             return (
               <React.Fragment key={item.id ?? "root"}>
                 {idx > 0 && <span className="text-zinc-400 dark:text-zinc-500 select-none">/</span>}
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleNavigateToBoard(item.id);
-                  }}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                    isLast
-                      ? "font-bold text-amber-800 bg-amber-500/20 border border-amber-500/40 shadow-xs dark:text-amber-300 dark:bg-amber-500/25 dark:border-amber-400/40"
-                      : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:text-white dark:hover:bg-white/15"
-                  }`}
-                  title={isLast ? `Current: ${item.name}` : `Navigate to ${item.name}`}
-                >
-                  <IconComponent className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span className="truncate max-w-[130px] sm:max-w-[200px]">{item.name}</span>
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleNavigateToBoard(item.id);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                      isLast
+                        ? "font-bold text-amber-800 bg-amber-500/20 border border-amber-500/40 shadow-xs dark:text-amber-300 dark:bg-amber-500/25 dark:border-amber-400/40"
+                        : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:text-white dark:hover:bg-white/15"
+                    }`}
+                    title={isLast ? `Current: ${item.name}` : `Navigate to ${item.name}`}
+                  >
+                    <IconComponent className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span className="truncate max-w-[130px] sm:max-w-[200px]">{item.name}</span>
+                  </button>
+                  {isLast && item.id !== null && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingBoardNote(null);
+                        setIsEditingCurrentBoard(true);
+                        setIsNewBoardModalOpen(true);
+                      }}
+                      className="p-1 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/15 transition-colors cursor-pointer"
+                      title="Edit sub-board name, icon, or color"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               </React.Fragment>
             );
           })}
@@ -2128,11 +2384,15 @@ export function IdeaBoardView({
               {currentBoardId && (
                 <button
                   type="button"
-                  onClick={() => handleNavigateToBoard(null)}
+                  onClick={() => {
+                    const parentId =
+                      boardPath.length >= 2 ? boardPath[boardPath.length - 2].id : null;
+                    handleNavigateToBoard(parentId);
+                  }}
                   className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
-                  <span>← Back to Root</span>
+                  <span>← Back</span>
                 </button>
               )}
               <button
@@ -2200,7 +2460,7 @@ export function IdeaBoardView({
                       ? 220
                       : note.height ||
                         (note.type === "image" || note.type === "video" ? 300 : 250));
-                  const rot = note.rotation || 0;
+                  const rot = 0;
 
                   return (
                     <g
@@ -2297,7 +2557,6 @@ export function IdeaBoardView({
                     isConnectingSource={isSource}
                     isConnectTarget={isTarget}
                     isSelected={selectedNoteIds.includes(note.id)}
-                    isTargetHighlight={targetHighlightNoteId === note.id}
                     onSelect={() => {
                       if (!selectedNoteIds.includes(note.id)) {
                         setSelectedNoteIds([note.id]);
@@ -2316,9 +2575,47 @@ export function IdeaBoardView({
                     onPinMouseEnter={handlePinMouseEnter}
                     onPinMouseLeave={handlePinMouseLeave}
                     onPinClick={handlePinClick}
+                    onStartConnect={(noteId) =>
+                      setConnectingSourceNoteId((prev) =>
+                        prev === noteId ? null : noteId
+                      )
+                    }
                     onEdit={(n) => {
                       setEditingNote(n);
                       setIsNoteModalOpen(true);
+                    }}
+                    onEditBoard={(n) => {
+                      setEditingBoardNote(n);
+                      setIsEditingCurrentBoard(false);
+                      setIsNewBoardModalOpen(true);
+                    }}
+                    onChangePinColor={(noteId, newPinColor) => {
+                      updateBoard({
+                        ...boardData,
+                        notes: boardData.notes.map((n) =>
+                          n.id === noteId
+                            ? {
+                                ...n,
+                                pin_color: newPinColor,
+                                updated_at: new Date().toISOString(),
+                              }
+                            : n
+                        ),
+                      });
+                    }}
+                    onChangePaperColor={(noteId, newPaperColor) => {
+                      updateBoard({
+                        ...boardData,
+                        notes: boardData.notes.map((n) =>
+                          n.id === noteId
+                            ? {
+                                ...n,
+                                color: newPaperColor,
+                                updated_at: new Date().toISOString(),
+                              }
+                            : n
+                        ),
+                      });
                     }}
                     onDelete={handleDeleteNote}
                     onDuplicate={handleDuplicateNote}
@@ -2401,15 +2698,6 @@ export function IdeaBoardView({
           >
             <Redo2 className="h-3.5 w-3.5" />
           </button>
-          <div className="h-4 w-px bg-zinc-300 dark:bg-white/20 mx-0.5" />
-          <button
-            type="button"
-            onClick={handleResetBoard}
-            className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 dark:hover:bg-white/20 dark:text-zinc-300 dark:hover:text-white cursor-pointer transition-colors"
-            title="Reset this project's board to initial layout"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </button>
           <button
             type="button"
             onClick={() => setShowHelp(!showHelp)}
@@ -2488,10 +2776,34 @@ export function IdeaBoardView({
         currentProjectId={projectId}
       />
 
-      {/* New Nested Sub-Board Modal (Requirement 4) */}
+      {/* New or Edit Nested Sub-Board Modal */}
       <NewBoardModal
         isOpen={isNewBoardModalOpen}
-        onClose={() => setIsNewBoardModalOpen(false)}
+        onClose={() => {
+          setIsNewBoardModalOpen(false);
+          setEditingBoardNote(null);
+          setIsEditingCurrentBoard(false);
+        }}
+        editingBoard={
+          editingBoardNote
+            ? {
+                name: editingBoardNote.title,
+                icon: editingBoardNote.icon,
+                color: editingBoardNote.color,
+                pinColor: editingBoardNote.pin_color,
+              }
+            : isEditingCurrentBoard && currentBoardId
+            ? (() => {
+                const cur = subboards.find((b) => b.id === currentBoardId);
+                return {
+                  name: cur?.name || currentBoardName,
+                  icon: cur?.icon || "folder",
+                  color: cur?.color || "kraft",
+                  pinColor: cur?.pin_color || "gold",
+                };
+              })()
+            : null
+        }
         onSubmit={handleCreateSubboard}
         parentBoardName={currentBoardName}
       />

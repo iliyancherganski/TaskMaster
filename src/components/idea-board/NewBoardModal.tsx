@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { IdeaPaperColor, BoardTheme } from "@/types/idea-board.types";
+import { IdeaPaperColor, IdeaPinColor, BoardTheme } from "@/types/idea-board.types";
 import {
   Folder,
   Layers,
@@ -25,21 +25,39 @@ import {
   Bookmark,
   Flame,
   Plus,
+  Pencil,
+  Check,
 } from "lucide-react";
+import {
+  PushPin,
+  PIN_COLOR_PRESETS,
+  resolvePinHexColor,
+  PAPER_COLOR_PRESETS,
+  resolvePaperHexColor,
+  getPaperColorVariations,
+} from "./PushPin";
 
 interface NewBoardModalProps {
   isOpen: boolean;
   onClose: () => void;
+  editingBoard?: {
+    name: string;
+    icon?: string;
+    color?: IdeaPaperColor;
+    pinColor?: IdeaPinColor;
+  } | null;
   onCreateBoard?: (data: {
     name: string;
     icon: string;
     color: IdeaPaperColor;
+    pin_color?: IdeaPinColor;
   }) => void;
   onSubmit?: (data: {
     name: string;
     icon?: string;
     theme?: BoardTheme;
     color?: IdeaPaperColor;
+    pin_color?: IdeaPinColor;
   }) => void | Promise<void>;
   parentBoardName?: string;
 }
@@ -73,6 +91,7 @@ const BOARD_COLORS: { id: IdeaPaperColor; label: string; bg: string }[] = [
 export function NewBoardModal({
   isOpen,
   onClose,
+  editingBoard = null,
   onCreateBoard,
   onSubmit,
   parentBoardName = "Main Board",
@@ -80,21 +99,32 @@ export function NewBoardModal({
   const [name, setName] = useState("");
   const [selectedIcon, setSelectedIcon] = useState("folder");
   const [selectedColor, setSelectedColor] = useState<IdeaPaperColor>("kraft");
+  const [selectedPinColor, setSelectedPinColor] = useState<IdeaPinColor>("gold");
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const isEditing = Boolean(editingBoard);
 
   // Auto-focus on title input when modal opens (Requirement 3)
   useEffect(() => {
     if (isOpen) {
-      setName("");
-      setSelectedIcon("folder");
-      setSelectedColor("kraft");
+      if (editingBoard) {
+        setName(editingBoard.name || "");
+        setSelectedIcon(editingBoard.icon || "folder");
+        setSelectedColor(editingBoard.color || "kraft");
+        setSelectedPinColor(editingBoard.pinColor || "gold");
+      } else {
+        setName("");
+        setSelectedIcon("folder");
+        setSelectedColor("kraft");
+        setSelectedPinColor("gold");
+      }
       const timer = setTimeout(() => {
         nameInputRef.current?.focus();
         nameInputRef.current?.select();
       }, 60);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, editingBoard]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +133,7 @@ export function NewBoardModal({
       name: name.trim(),
       icon: selectedIcon,
       color: selectedColor,
+      pin_color: selectedPinColor,
       theme: "cork" as BoardTheme,
     };
     if (onSubmit) {
@@ -115,6 +146,7 @@ export function NewBoardModal({
 
   const SelectedIconComp =
     SUBBOARD_ICONS.find((i) => i.id === selectedIcon)?.icon || Folder;
+  const paperTones = getPaperColorVariations(selectedColor);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -122,17 +154,27 @@ export function NewBoardModal({
         <DialogHeader>
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20">
-              <Layers className="h-5 w-5" />
+              {isEditing ? (
+                <Pencil className="h-5 w-5" />
+              ) : (
+                <Layers className="h-5 w-5" />
+              )}
             </div>
             <div>
               <DialogTitle className="text-base font-bold text-foreground">
-                Create Sub-Idea Board
+                {isEditing ? "Edit Sub-Idea Board" : "Create Sub-Idea Board"}
               </DialogTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Nest a new sub-board inside{" "}
-                <span className="font-semibold text-foreground">
-                  {parentBoardName}
-                </span>
+                {isEditing ? (
+                  "Update sub-board name, icon, and card color"
+                ) : (
+                  <>
+                    Nest a new sub-board inside{" "}
+                    <span className="font-semibold text-foreground">
+                      {parentBoardName}
+                    </span>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -183,7 +225,7 @@ export function NewBoardModal({
             </div>
           </div>
 
-          {/* Color Card Style */}
+          {/* Card Color Style + Colorwheel */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
               Card Color
@@ -204,24 +246,116 @@ export function NewBoardModal({
                   title={c.label}
                 />
               ))}
+              {/* Custom Card Colorwheel Picker */}
+              <label
+                className={`relative h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center cursor-pointer overflow-hidden ${
+                  !BOARD_COLORS.some((c) => c.id === selectedColor)
+                    ? "ring-2 ring-primary ring-offset-2 scale-110 border-black/30"
+                    : "border-black/20"
+                }`}
+                style={{
+                  background: !BOARD_COLORS.some((c) => c.id === selectedColor)
+                    ? resolvePaperHexColor(selectedColor)
+                    : "conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #10b981, #3b82f6, #8b5cf6, #ec4899, #ef4444)",
+                }}
+                title="Pick custom card color from colorwheel"
+              >
+                <input
+                  type="color"
+                  value={resolvePaperHexColor(selectedColor)}
+                  onChange={(e) => setSelectedColor(e.target.value)}
+                  className="sr-only"
+                />
+                <Palette className="h-3 w-3 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] pointer-events-none" />
+              </label>
+            </div>
+          </div>
+
+          {/* Pin Color Selector (Requirement 1: pin color on subboard to be editable) */}
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+              Pushpin Color
+            </label>
+            <div className="flex items-center gap-2 flex-wrap">
+              {PIN_COLOR_PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedPinColor(p.id)}
+                  className={`h-7 w-7 rounded-full border-2 transition-transform cursor-pointer ${
+                    selectedPinColor === p.id
+                      ? "ring-2 ring-primary ring-offset-2 scale-110 border-black/40"
+                      : "border-black/20 hover:scale-105"
+                  }`}
+                  style={{ backgroundColor: p.hex }}
+                  title={p.label}
+                />
+              ))}
+              {/* Custom Pin Colorwheel Picker */}
+              <label
+                className={`relative h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center cursor-pointer overflow-hidden ${
+                  !PIN_COLOR_PRESETS.some((p) => p.id === selectedPinColor)
+                    ? "ring-2 ring-primary ring-offset-2 scale-110 border-black/40"
+                    : "border-black/20"
+                }`}
+                style={{
+                  background: !PIN_COLOR_PRESETS.some((p) => p.id === selectedPinColor)
+                    ? resolvePinHexColor(selectedPinColor)
+                    : "conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #10b981, #3b82f6, #8b5cf6, #ec4899, #ef4444)",
+                }}
+                title="Pick custom pushpin color from colorwheel"
+              >
+                <input
+                  type="color"
+                  value={resolvePinHexColor(selectedPinColor)}
+                  onChange={(e) => setSelectedPinColor(e.target.value)}
+                  className="sr-only"
+                />
+                <Palette className="h-3 w-3 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] pointer-events-none" />
+              </label>
             </div>
           </div>
 
           {/* Live Preview Box */}
           <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 flex items-center justify-center">
             <div
-              className={`w-36 h-36 rounded-2xl border-2 border-dashed border-amber-700/40 p-3 shadow-md flex flex-col items-center justify-center text-center gap-2 ${
-                BOARD_COLORS.find((c) => c.id === selectedColor)?.bg ||
-                "bg-[#fed7aa]"
+              className={`relative w-36 h-36 rounded-2xl border-2 border-dashed p-3 shadow-md flex flex-col items-center justify-center text-center gap-1.5 ${
+                BOARD_COLORS.find((c) => c.id === selectedColor)?.bg || ""
               }`}
+              style={{
+                ...(!BOARD_COLORS.some((c) => c.id === selectedColor)
+                  ? {
+                      backgroundColor: paperTones.base,
+                      borderColor: paperTones.border,
+                      color: paperTones.textColor,
+                    }
+                  : {}),
+              }}
             >
-              <div className="h-12 w-12 rounded-xl bg-black/10 flex items-center justify-center text-amber-900">
-                <SelectedIconComp className="h-7 w-7" />
+              {/* Pushpin at top of preview */}
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+                <PushPin color={selectedPinColor} size="sm" />
               </div>
-              <span className="text-xs font-bold text-amber-950 truncate max-w-[120px]">
+
+              <div
+                className={`h-11 w-11 rounded-xl flex items-center justify-center mt-1 ${
+                  selectedColor === "dark" || paperTones.isDark
+                    ? "bg-white/15 text-slate-100"
+                    : "bg-black/10 text-amber-900"
+                }`}
+              >
+                <SelectedIconComp className="h-6 w-6" />
+              </div>
+              <span className="text-xs font-bold leading-snug break-words line-clamp-2 max-w-[125px]">
                 {name.trim() || "Sub-Board"}
               </span>
-              <span className="text-[10px] text-amber-900/60 font-medium">
+              <span
+                className={`text-[10px] font-medium ${
+                  selectedColor === "dark" || paperTones.isDark
+                    ? "text-slate-300"
+                    : "text-amber-900/60"
+                }`}
+              >
                 Double click to open
               </span>
             </div>
@@ -243,8 +377,17 @@ export function NewBoardModal({
               disabled={!name.trim()}
               className="text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold"
             >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Create Board</span>
+              {isEditing ? (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Save Changes</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Create Board</span>
+                </>
+              )}
             </Button>
           </DialogFooter>
         </form>

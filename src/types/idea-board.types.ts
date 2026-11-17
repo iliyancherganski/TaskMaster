@@ -7,7 +7,8 @@ export type IdeaPinColor =
   | "blue"
   | "green"
   | "yellow"
-  | "pink";
+  | "pink"
+  | (string & {});
 
 export type IdeaPaperColor =
   | "yellow"
@@ -17,7 +18,8 @@ export type IdeaPaperColor =
   | "sky"
   | "lavender"
   | "rose"
-  | "dark";
+  | "dark"
+  | (string & {});
 
 export type IdeaStringColor =
   | "red"
@@ -38,6 +40,8 @@ export interface IdeaBoardItem {
   name: string;
   parent_board_id: string | null;
   icon?: string;
+  color?: IdeaPaperColor;
+  pin_color?: IdeaPinColor;
   theme?: BoardTheme;
   created_at?: string;
   updated_at?: string;

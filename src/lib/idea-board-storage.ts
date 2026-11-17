@@ -158,6 +158,17 @@ export const isValidUuid = (id?: string | null): boolean => {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 };
 
+export function generateIdeaId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export const normalizeProjectId = (projectId?: string | null): string | null => {
   if (!projectId || projectId === "all") return null;
   return isValidUuid(projectId) ? projectId : null;
@@ -618,6 +629,8 @@ export function loadIdeaBoard(
 
         return {
           id: boardId || undefined,
+          name: parsed.name || undefined,
+          parent_board_id: parsed.parent_board_id || null,
           notes: sanitizedNotes,
           connections: parsed.connections,
           theme: parsed.theme || "cork",
@@ -634,7 +647,9 @@ export function loadIdeaBoard(
     (!boardId && (!projectId || projectId === "all"))
   ) {
     const initialData = generateInitialProjectBoard(projectId, boardId);
-    saveIdeaBoard(projectId, initialData, boardId);
+    try {
+      localStorage.setItem(key, JSON.stringify(initialData));
+    } catch {}
     return initialData;
   }
 
@@ -644,8 +659,71 @@ export function loadIdeaBoard(
     connections: [],
     theme: "cork",
   };
-  saveIdeaBoard(projectId, emptyBoard, boardId);
+  try {
+    localStorage.setItem(key, JSON.stringify(emptyBoard));
+  } catch {}
   return emptyBoard;
+}
+
+/**
+ * Helper to upsert rows into Supabase while gracefully stripping any columns
+ * that haven't been added to the user's database schema yet.
+ */
+async function upsertRowsResilient(
+  tableName: "IdeaNotes" | "IdeaStrings",
+  rows: Record<string, any>[],
+  optionalColumns: string[]
+): Promise<boolean> {
+  if (!rows || rows.length === 0) return true;
+
+  let currentRows = rows.map((r) => ({ ...r }));
+  const strippedCols = new Set<string>();
+
+  for (let attempt = 0; attempt <= optionalColumns.length + 1; attempt++) {
+    const { error } = await (supabase.from(tableName) as any).upsert(
+      currentRows,
+      { onConflict: "id" }
+    );
+
+    if (!error) {
+      return true;
+    }
+
+    const msg = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`;
+    // Detect missing column name from PostgREST / PostgreSQL error message
+    const colMatch =
+      msg.match(/Could not find the '([^']+)' column/i) ||
+      msg.match(/column "([^"]+)" of relation/i) ||
+      msg.match(/column ([a-zA-Z0-9_]+) does not exist/i);
+
+    if (colMatch && colMatch[1] && !strippedCols.has(colMatch[1])) {
+      const badCol = colMatch[1];
+      strippedCols.add(badCol);
+      currentRows = currentRows.map((row) => {
+        const copy = { ...row };
+        delete copy[badCol];
+        return copy;
+      });
+      continue;
+    }
+
+    // Fallback: strip all remaining optional columns at once and try one final time
+    const remainingOptional = optionalColumns.filter((c) => !strippedCols.has(c));
+    if (remainingOptional.length > 0) {
+      remainingOptional.forEach((c) => strippedCols.add(c));
+      currentRows = currentRows.map((row) => {
+        const copy = { ...row };
+        remainingOptional.forEach((c) => delete copy[c]);
+        return copy;
+      });
+      continue;
+    }
+
+    console.warn(`Supabase ${tableName} upsert notice:`, error.message);
+    return false;
+  }
+
+  return false;
 }
 
 /**
@@ -669,7 +747,7 @@ export async function fetchIdeaBoardFromDb(
   const pId = normalizeProjectId(projectId);
 
   try {
-    // 1. Fetch Notes from Supabase
+    // 1. Fetch Notes from Supabase (with fallback if board_id column is not yet migrated)
     let notesQuery = supabase.from("IdeaNotes").select("*");
     if (pId) {
       notesQuery = notesQuery.eq("project_id", pId);
@@ -686,14 +764,26 @@ export async function fetchIdeaBoardFromDb(
       notesQuery = notesQuery.is("board_id", null);
     }
 
-    const { data: notesData, error: notesErr } = await notesQuery.order("z_index", { ascending: true });
+    let { data: notesData, error: notesErr } = await notesQuery.order("z_index", { ascending: true });
+
+    if (notesErr && !boardId && /board_id/i.test(notesErr.message || "")) {
+      let fallbackNotesQuery = supabase.from("IdeaNotes").select("*");
+      if (pId) {
+        fallbackNotesQuery = fallbackNotesQuery.eq("project_id", pId);
+      } else {
+        fallbackNotesQuery = fallbackNotesQuery.is("project_id", null);
+      }
+      const fallbackRes = await fallbackNotesQuery.order("z_index", { ascending: true });
+      notesData = fallbackRes.data;
+      notesErr = fallbackRes.error;
+    }
 
     if (notesErr) {
       console.warn("Supabase IdeaNotes query notice:", notesErr.message);
       return localCached;
     }
 
-    // 2. Fetch Strings from Supabase
+    // 2. Fetch Strings from Supabase (with fallback if board_id column is not yet migrated)
     let stringsQuery = supabase.from("IdeaStrings").select("*");
     if (pId) {
       stringsQuery = stringsQuery.eq("project_id", pId);
@@ -710,21 +800,46 @@ export async function fetchIdeaBoardFromDb(
       stringsQuery = stringsQuery.is("board_id", null);
     }
 
-    const { data: stringsData } = await stringsQuery;
+    let { data: stringsData, error: stringsErr } = await stringsQuery;
+    if (stringsErr && !boardId && /board_id/i.test(stringsErr.message || "")) {
+      let fallbackStringsQuery = supabase.from("IdeaStrings").select("*");
+      if (pId) {
+        fallbackStringsQuery = fallbackStringsQuery.eq("project_id", pId);
+      } else {
+        fallbackStringsQuery = fallbackStringsQuery.is("project_id", null);
+      }
+      const fallbackStrRes = await fallbackStringsQuery;
+      stringsData = fallbackStrRes.data;
+    }
 
     // 3. Fetch Board Row
-    let boardQuery = supabase.from("IdeaBoards").select("id, name, parent_board_id, theme");
-    if (boardId) {
-      if (!isValidUuid(boardId)) {
-        return localCached;
+    let boardDataRow: any = null;
+    try {
+      let boardQuery = supabase.from("IdeaBoards").select("*");
+      if (boardId) {
+        if (isValidUuid(boardId)) {
+          boardQuery = boardQuery.eq("id", boardId);
+          const { data } = await boardQuery.limit(1).maybeSingle();
+          boardDataRow = data;
+        }
+      } else if (pId) {
+        const { data, error } = await boardQuery.eq("project_id", pId).is("parent_board_id", null).limit(1).maybeSingle();
+        if (error && /parent_board_id/i.test(error.message || "")) {
+          const fallback = await supabase.from("IdeaBoards").select("*").eq("project_id", pId).limit(1).maybeSingle();
+          boardDataRow = fallback.data;
+        } else {
+          boardDataRow = data;
+        }
+      } else {
+        const { data, error } = await boardQuery.is("project_id", null).is("parent_board_id", null).limit(1).maybeSingle();
+        if (error && /parent_board_id/i.test(error.message || "")) {
+          const fallback = await supabase.from("IdeaBoards").select("*").is("project_id", null).limit(1).maybeSingle();
+          boardDataRow = fallback.data;
+        } else {
+          boardDataRow = data;
+        }
       }
-      boardQuery = boardQuery.eq("id", boardId);
-    } else if (pId) {
-      boardQuery = boardQuery.eq("project_id", pId).is("parent_board_id", null);
-    } else {
-      boardQuery = boardQuery.is("project_id", null).is("parent_board_id", null);
-    }
-    const { data: boardDataRow } = await boardQuery.maybeSingle();
+    } catch {}
 
     // Map notes
     const mappedNotes: IdeaNote[] = (notesData || []).map((n, idx) => {
@@ -774,12 +889,19 @@ export async function fetchIdeaBoardFromDb(
       created_at: s.created_at,
     }));
 
-    const theme = (boardDataRow?.theme as BoardTheme) || "cork";
+    // If the database currently has 0 notes for this board, but local cache has notes
+    // (e.g., created offline or before schema sync), push local notes to DB and preserve them!
+    if (mappedNotes.length === 0 && localCached.notes.length > 0) {
+      saveIdeaBoardToDb(projectId, localCached, boardId).catch(() => {});
+      return localCached;
+    }
+
+    const theme = (boardDataRow?.theme as BoardTheme) || localCached.theme || "cork";
 
     const dbBoardData: IdeaBoardData = {
       id: boardDataRow?.id || boardId || undefined,
-      name: boardDataRow?.name || undefined,
-      parent_board_id: boardDataRow?.parent_board_id || null,
+      name: boardDataRow?.name || localCached.name || undefined,
+      parent_board_id: boardDataRow?.parent_board_id || localCached.parent_board_id || null,
       notes: mappedNotes,
       connections: mappedStrings,
       theme,
@@ -800,6 +922,55 @@ export async function fetchIdeaBoardFromDb(
 }
 
 /**
+ * Helper to delete notes or strings from Supabase that are no longer in currentIds.
+ */
+async function deleteRemovedRowsResilient(
+  tableName: "IdeaNotes" | "IdeaStrings",
+  pId: string | null,
+  boardId: string | null | undefined,
+  currentIds: string[]
+): Promise<void> {
+  try {
+    let selQuery = supabase.from(tableName).select("id");
+    if (boardId) {
+      selQuery = selQuery.eq("board_id", boardId);
+    } else {
+      if (pId) {
+        selQuery = selQuery.eq("project_id", pId);
+      } else {
+        selQuery = selQuery.is("project_id", null);
+      }
+      selQuery = selQuery.is("board_id", null);
+    }
+
+    let { data: existingRows, error } = await selQuery;
+    if (error && !boardId && /board_id/i.test(error.message || "")) {
+      let fallbackQuery = supabase.from(tableName).select("id");
+      if (pId) {
+        fallbackQuery = fallbackQuery.eq("project_id", pId);
+      } else {
+        fallbackQuery = fallbackQuery.is("project_id", null);
+      }
+      const fallbackRes = await fallbackQuery;
+      existingRows = fallbackRes.data;
+    }
+
+    if (!existingRows || existingRows.length === 0) return;
+
+    const currentSet = new Set(currentIds);
+    const idsToDelete = existingRows
+      .map((r: any) => r.id)
+      .filter((id: string) => id && !currentSet.has(id));
+
+    if (idsToDelete.length > 0) {
+      await supabase.from(tableName).delete().in("id", idsToDelete);
+    }
+  } catch (err) {
+    console.warn(`deleteRemovedRowsResilient (${tableName}) notice:`, err);
+  }
+}
+
+/**
  * Persists Idea Board directly to Supabase PostgreSQL database.
  */
 export async function saveIdeaBoardToDb(
@@ -812,212 +983,143 @@ export async function saveIdeaBoardToDb(
   const pId = normalizeProjectId(projectId);
 
   try {
-    if (boardId) {
-      // Sub-board persistence: Only write to Supabase if valid UUID
-      if (!isValidUuid(boardId)) {
-        return;
-      }
+    const validBoardId = boardId && isValidUuid(boardId) ? boardId : null;
+    if (boardId && !validBoardId) {
+      return;
+    }
 
-      await supabase
-        .from("IdeaBoards")
-        .update({
-          theme: data.theme || "cork",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", boardId);
-
-      // Upsert Notes strictly for this sub-board
-      if (data.notes && data.notes.length > 0) {
-        const noteInserts = data.notes.map((n) => ({
-          id: n.id,
-          project_id: pId,
-          board_id: boardId,
-          type: n.type || "text",
-          title: n.title || "New Idea",
-          content: n.content || "",
-          file_url: n.file_url || null,
-          file_name: n.file_name || null,
-          file_size: n.file_size ? Number(n.file_size) : null,
-          task_id: isValidUuid(n.task_id) ? n.task_id : null,
-          sub_board_id: isValidUuid(n.sub_board_id) ? n.sub_board_id : null,
-          icon: n.icon || null,
-          color: n.color || "yellow",
-          pin_color: n.pin_color || "red",
-          x: typeof n.x === "number" && !isNaN(n.x) ? n.x : 100,
-          y: typeof n.y === "number" && !isNaN(n.y) ? n.y : 100,
-          width: typeof n.width === "number" && !isNaN(n.width) ? n.width : (n.type === "board" ? 220 : 300),
-          height: typeof n.height === "number" && !isNaN(n.height) ? n.height : null,
-          is_scratched: Boolean(n.is_scratched),
-          rotation: typeof n.rotation === "number" && !isNaN(n.rotation) ? n.rotation : 0,
-          z_index: typeof n.z_index === "number" ? n.z_index : 1,
-          updated_at: new Date().toISOString(),
-        }));
-
-        await supabase.from("IdeaNotes").upsert(noteInserts, { onConflict: "id" });
-
-        const currentNoteIds = data.notes.map((n) => n.id);
+    // 1. Ensure Board Row exists / is updated in IdeaBoards
+    try {
+      if (validBoardId) {
         await supabase
-          .from("IdeaNotes")
-          .delete()
-          .eq("board_id", boardId)
-          .not("id", "in", `(${currentNoteIds.map((id) => `"${id}"`).join(",")})`);
-      } else {
-        await supabase.from("IdeaNotes").delete().eq("board_id", boardId);
-      }
-
-      // Upsert Strings strictly for this sub-board
-      if (data.connections && data.connections.length > 0) {
-        const stringInserts = data.connections.map((c) => ({
-          id: c.id,
-          project_id: pId,
-          board_id: boardId,
-          from_note_id: c.from_note_id,
-          to_note_id: c.to_note_id,
-          color: c.color || "red",
-          label: c.label || null,
-          tension: c.tension || "normal",
-        }));
-
-        await supabase.from("IdeaStrings").upsert(stringInserts, { onConflict: "id" });
-
-        const currentStringIds = data.connections.map((c) => c.id);
-        await supabase
-          .from("IdeaStrings")
-          .delete()
-          .eq("board_id", boardId)
-          .not("id", "in", `(${currentStringIds.map((id) => `"${id}"`).join(",")})`);
-      } else {
-        await supabase.from("IdeaStrings").delete().eq("board_id", boardId);
-      }
-    } else {
-      // Root Board persistence (board_id IS NULL)
-      if (pId) {
-        await supabase.from("IdeaBoards").upsert(
-          {
-            project_id: pId,
-            name: "Main Board",
-            parent_board_id: null,
+          .from("IdeaBoards")
+          .update({
             theme: data.theme || "cork",
             updated_at: new Date().toISOString(),
-          },
-          { onConflict: "project_id" }
-        );
+          })
+          .eq("id", validBoardId);
       } else {
-        const { data: existingBoard } = await supabase
-          .from("IdeaBoards")
-          .select("id")
-          .is("project_id", null)
+        let boardQuery = supabase.from("IdeaBoards").select("id");
+        if (pId) {
+          boardQuery = boardQuery.eq("project_id", pId);
+        } else {
+          boardQuery = boardQuery.is("project_id", null);
+        }
+        const { data: existingBoard, error: findErr } = await boardQuery
           .is("parent_board_id", null)
+          .limit(1)
           .maybeSingle();
 
-        if (existingBoard) {
+        let targetBoardId = existingBoard?.id;
+        if (findErr && /parent_board_id/i.test(findErr.message || "")) {
+          let fbQuery = supabase.from("IdeaBoards").select("id");
+          fbQuery = pId ? fbQuery.eq("project_id", pId) : fbQuery.is("project_id", null);
+          const fbRes = await fbQuery.limit(1).maybeSingle();
+          targetBoardId = fbRes.data?.id;
+        }
+
+        if (targetBoardId) {
           await supabase
             .from("IdeaBoards")
             .update({
               theme: data.theme || "cork",
               updated_at: new Date().toISOString(),
             })
-            .eq("id", existingBoard.id);
+            .eq("id", targetBoardId);
         } else {
-          await supabase.from("IdeaBoards").insert({
-            project_id: null,
+          const { error: insErr } = await supabase.from("IdeaBoards").insert({
+            project_id: pId,
             name: "Main Board",
             parent_board_id: null,
             theme: data.theme || "cork",
           });
+          if (insErr && /name|parent_board_id/i.test(insErr.message || "")) {
+            await supabase.from("IdeaBoards").insert({
+              project_id: pId,
+              theme: data.theme || "cork",
+            });
+          }
         }
       }
+    } catch {}
 
-      // Upsert Notes for root board
-      if (data.notes && data.notes.length > 0) {
-        const noteInserts = data.notes.map((n) => ({
-          id: n.id,
-          project_id: pId,
-          board_id: null,
-          type: n.type || "text",
-          title: n.title || "New Idea",
-          content: n.content || "",
-          file_url: n.file_url || null,
-          file_name: n.file_name || null,
-          file_size: n.file_size ? Number(n.file_size) : null,
-          task_id: isValidUuid(n.task_id) ? n.task_id : null,
-          sub_board_id: isValidUuid(n.sub_board_id) ? n.sub_board_id : null,
-          icon: n.icon || null,
-          color: n.color || "yellow",
-          pin_color: n.pin_color || "red",
-          x: typeof n.x === "number" && !isNaN(n.x) ? n.x : 100,
-          y: typeof n.y === "number" && !isNaN(n.y) ? n.y : 100,
-          width: typeof n.width === "number" && !isNaN(n.width) ? n.width : (n.type === "board" ? 220 : 300),
-          height: typeof n.height === "number" && !isNaN(n.height) ? n.height : null,
-          is_scratched: Boolean(n.is_scratched),
-          rotation: typeof n.rotation === "number" && !isNaN(n.rotation) ? n.rotation : 0,
-          z_index: typeof n.z_index === "number" ? n.z_index : 1,
-          updated_at: new Date().toISOString(),
-        }));
+    // 2. Upsert Notes and clean up deleted notes for this board
+    const noteInserts = (data.notes || []).map((n) => ({
+      id: n.id,
+      project_id: pId,
+      board_id: validBoardId,
+      type: n.type || "text",
+      title: n.title || "New Idea",
+      content: n.content || "",
+      file_url: n.file_url || null,
+      file_name: n.file_name || null,
+      file_size: n.file_size ? Number(n.file_size) : null,
+      task_id: isValidUuid(n.task_id) ? n.task_id : null,
+      sub_board_id: isValidUuid(n.sub_board_id) ? n.sub_board_id : null,
+      icon: n.icon || null,
+      color: n.color || "yellow",
+      pin_color: n.pin_color || "red",
+      x: typeof n.x === "number" && !isNaN(n.x) ? n.x : 100,
+      y: typeof n.y === "number" && !isNaN(n.y) ? n.y : 100,
+      width:
+        typeof n.width === "number" && !isNaN(n.width)
+          ? n.width
+          : n.type === "board"
+          ? 220
+          : 300,
+      height: typeof n.height === "number" && !isNaN(n.height) ? n.height : null,
+      is_scratched: Boolean(n.is_scratched),
+      rotation: typeof n.rotation === "number" && !isNaN(n.rotation) ? n.rotation : 0,
+      z_index: typeof n.z_index === "number" ? n.z_index : 1,
+      updated_at: new Date().toISOString(),
+    }));
 
-        await supabase.from("IdeaNotes").upsert(noteInserts, { onConflict: "id" });
-
-        const currentNoteIds = data.notes.map((n) => n.id);
-        let delNoteQuery = supabase.from("IdeaNotes").delete().is("board_id", null);
-        if (pId) {
-          delNoteQuery = delNoteQuery.eq("project_id", pId);
-        } else {
-          delNoteQuery = delNoteQuery.is("project_id", null);
-        }
-        if (currentNoteIds.length > 0) {
-          await delNoteQuery.not("id", "in", `(${currentNoteIds.map((id) => `"${id}"`).join(",")})`);
-        }
-      } else {
-        let delAllNotes = supabase.from("IdeaNotes").delete().is("board_id", null);
-        if (pId) {
-          delAllNotes = delAllNotes.eq("project_id", pId);
-        } else {
-          delAllNotes = delAllNotes.is("project_id", null);
-        }
-        await delAllNotes;
-      }
-
-      // Upsert Strings for root board
-      if (data.connections && data.connections.length > 0) {
-        const stringInserts = data.connections.map((c) => ({
-          id: c.id,
-          project_id: pId,
-          board_id: null,
-          from_note_id: c.from_note_id,
-          to_note_id: c.to_note_id,
-          color: c.color || "red",
-          label: c.label || null,
-          tension: c.tension || "normal",
-        }));
-
-        await supabase.from("IdeaStrings").upsert(stringInserts, { onConflict: "id" });
-
-        const currentStringIds = data.connections.map((c) => c.id);
-        let delStrQuery = supabase.from("IdeaStrings").delete().is("board_id", null);
-        if (pId) {
-          delStrQuery = delStrQuery.eq("project_id", pId);
-        } else {
-          delStrQuery = delStrQuery.is("project_id", null);
-        }
-        if (currentStringIds.length > 0) {
-          await delStrQuery.not("id", "in", `(${currentStringIds.map((id) => `"${id}"`).join(",")})`);
-        }
-      } else {
-        let delAllStrings = supabase.from("IdeaStrings").delete().is("board_id", null);
-        if (pId) {
-          delAllStrings = delAllStrings.eq("project_id", pId);
-        } else {
-          delAllStrings = delAllStrings.is("project_id", null);
-        }
-        await delAllStrings;
-      }
+    if (noteInserts.length > 0) {
+      await upsertRowsResilient("IdeaNotes", noteInserts, [
+        "sub_board_id",
+        "icon",
+        "height",
+        "is_scratched",
+        "board_id",
+        "task_id",
+      ]);
     }
+
+    await deleteRemovedRowsResilient(
+      "IdeaNotes",
+      pId,
+      validBoardId,
+      noteInserts.map((n) => n.id)
+    );
+
+    // 3. Upsert Strings and clean up deleted strings for this board
+    const stringInserts = (data.connections || []).map((c) => ({
+      id: c.id,
+      project_id: pId,
+      board_id: validBoardId,
+      from_note_id: c.from_note_id,
+      to_note_id: c.to_note_id,
+      color: c.color || "red",
+      label: c.label || null,
+      tension: c.tension || "normal",
+    }));
+
+    if (stringInserts.length > 0) {
+      await upsertRowsResilient("IdeaStrings", stringInserts, ["board_id"]);
+    }
+
+    await deleteRemovedRowsResilient(
+      "IdeaStrings",
+      pId,
+      validBoardId,
+      stringInserts.map((s) => s.id)
+    );
   } catch (err) {
     console.warn("saveIdeaBoardToDb error:", err);
   }
 }
 
-let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+const saveDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /**
  * Optimistic local save with automatic debounced cloud sync to Supabase.
@@ -1035,16 +1137,19 @@ export function saveIdeaBoard(
     console.error("Failed to save idea board to localStorage:", err);
   }
 
-  // Debounced cloud sync to Supabase Database
+  // Per-board debounced cloud sync to Supabase Database
   if (isSupabaseConfigured) {
-    if (saveDebounceTimer) {
-      clearTimeout(saveDebounceTimer);
+    const existingTimer = saveDebounceTimers.get(key);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
     }
-    saveDebounceTimer = setTimeout(() => {
+    const timer = setTimeout(() => {
+      saveDebounceTimers.delete(key);
       saveIdeaBoardToDb(projectId, data, boardId).catch((err) => {
         console.warn("Background idea board Supabase sync error:", err);
       });
-    }, 450);
+    }, 250);
+    saveDebounceTimers.set(key, timer);
   }
 }
 
@@ -1107,13 +1212,12 @@ export async function createSubboard(
   name: string,
   parentBoardId: string | null,
   icon = "folder",
-  theme: BoardTheme = "cork"
+  theme: BoardTheme = "cork",
+  color: IdeaPaperColor = "kraft",
+  pinColor: IdeaPinColor = "gold"
 ): Promise<IdeaBoardItem> {
   const pId = normalizeProjectId(projectId);
-  const newBoardId =
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `b0000000-${Date.now().toString(16).padStart(8, "0").slice(-8)}-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`;
+  const newBoardId = generateIdeaId();
 
   const newBoard: IdeaBoardItem = {
     id: newBoardId,
@@ -1121,6 +1225,8 @@ export async function createSubboard(
     name: name.trim() || "New Board",
     parent_board_id: parentBoardId || null,
     icon: icon || "folder",
+    color: color || "kraft",
+    pin_color: pinColor || "gold",
     theme: theme || "cork",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -1130,7 +1236,18 @@ export async function createSubboard(
   const updated = [...cached.filter((b) => b.id !== newBoardId), newBoard];
   saveSubboardsToCache(projectId, updated);
 
-  saveIdeaBoard(projectId, { id: newBoardId, name: newBoard.name, parent_board_id: parentBoardId, notes: [], connections: [], theme: theme || "cork" }, newBoardId);
+  saveIdeaBoard(
+    projectId,
+    {
+      id: newBoardId,
+      name: newBoard.name,
+      parent_board_id: parentBoardId,
+      notes: [],
+      connections: [],
+      theme: theme || "cork",
+    },
+    newBoardId
+  );
 
   if (isSupabaseConfigured && supabase) {
     try {
@@ -1149,9 +1266,23 @@ export async function createSubboard(
 
       if (!error && data) {
         newBoard.id = data.id;
-        const freshUpdated = [...cached.filter((b) => b.id !== newBoardId && b.id !== data.id), newBoard];
+        const freshUpdated = [
+          ...cached.filter((b) => b.id !== newBoardId && b.id !== data.id),
+          newBoard,
+        ];
         saveSubboardsToCache(projectId, freshUpdated);
-        saveIdeaBoard(projectId, { id: data.id, name: newBoard.name, parent_board_id: parentBoardId, notes: [], connections: [], theme: theme || "cork" }, data.id);
+        saveIdeaBoard(
+          projectId,
+          {
+            id: data.id,
+            name: newBoard.name,
+            parent_board_id: parentBoardId,
+            notes: [],
+            connections: [],
+            theme: theme || "cork",
+          },
+          data.id
+        );
       }
     } catch (e) {
       console.warn("createSubboard fallback:", e);
@@ -1159,6 +1290,89 @@ export async function createSubboard(
   }
 
   return newBoard;
+}
+
+export async function updateSubboard(
+  projectId: string | null | undefined,
+  boardId: string,
+  updates: {
+    name?: string;
+    icon?: string;
+    color?: IdeaPaperColor;
+    pin_color?: IdeaPinColor;
+    theme?: BoardTheme;
+  }
+): Promise<IdeaBoardItem | null> {
+  const cached = getSubboardsFromCache(projectId);
+  let target: IdeaBoardItem | null = null;
+  const updatedList = cached.map((b) => {
+    if (b.id === boardId) {
+      target = {
+        ...b,
+        name: updates.name !== undefined ? updates.name.trim() || b.name : b.name,
+        icon: updates.icon !== undefined ? updates.icon : b.icon,
+        color: updates.color !== undefined ? updates.color : b.color,
+        pin_color: updates.pin_color !== undefined ? updates.pin_color : b.pin_color,
+        theme: updates.theme !== undefined ? updates.theme : b.theme,
+        updated_at: new Date().toISOString(),
+      };
+      return target;
+    }
+    return b;
+  });
+
+  if (!target) {
+    target = {
+      id: boardId,
+      project_id: normalizeProjectId(projectId),
+      name: updates.name?.trim() || "Sub-Board",
+      parent_board_id: null,
+      icon: updates.icon || "folder",
+      color: updates.color || "kraft",
+      theme: updates.theme || "cork",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    updatedList.push(target);
+  }
+
+  saveSubboardsToCache(projectId, updatedList);
+
+  // Also update the sub-board's own cached board name if present
+  if (typeof window !== "undefined") {
+    try {
+      const subKey = getStorageKey(projectId, boardId);
+      const raw = localStorage.getItem(subKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (updates.name) parsed.name = updates.name.trim();
+        if (updates.theme) parsed.theme = updates.theme;
+        localStorage.setItem(subKey, JSON.stringify(parsed));
+      }
+    } catch {}
+  }
+
+  if (isSupabaseConfigured && supabase && isValidUuid(boardId)) {
+    try {
+      const dbUpdates: {
+        name?: string;
+        icon?: string;
+        theme?: string;
+        updated_at: string;
+      } = {
+        updated_at: new Date().toISOString(),
+      };
+      if (updates.name !== undefined) dbUpdates.name = updates.name.trim();
+      if (updates.icon !== undefined) dbUpdates.icon = updates.icon;
+      if (updates.theme !== undefined) dbUpdates.theme = updates.theme;
+
+      await supabase.from("IdeaBoards").update(dbUpdates).eq("id", boardId);
+    } catch (e) {
+      console.warn("updateSubboard fallback:", e);
+    }
+  }
+
+  return target;
 }
 
 export async function deleteSubboard(

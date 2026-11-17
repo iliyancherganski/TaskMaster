@@ -26,11 +26,18 @@ import {
   Sparkles,
   Link2,
   Upload,
+  Palette,
 } from "lucide-react";
 import { TaskWithDetails } from "@/types/database.types";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { RichMarkdownEditor } from "@/components/ui/rich-markdown-editor";
-import { PushPin } from "./PushPin";
+import {
+  PushPin,
+  resolvePinHexColor,
+  getPinColorVariations,
+  resolvePaperHexColor,
+  getPaperColorVariations,
+} from "./PushPin";
 import { uploadIdeaAttachment } from "@/lib/idea-board-storage";
 
 interface IdeaNoteModalProps {
@@ -146,11 +153,10 @@ export function IdeaNoteModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() && !content.trim() && !fileUrl.trim()) return;
 
     onSave({
       type,
-      title: title.trim() || (type === "text" ? "Thought Note" : "Untitled Attachment"),
+      title: title.trim(),
       content: content.trim(),
       file_url: fileUrl.trim() || null,
       file_name: fileName.trim() || null,
@@ -318,49 +324,138 @@ export function IdeaNoteModal({
           </div>
 
           {/* Paper Color & Pin Color */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-            {/* Paper Color */}
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
-                Paper Color
-              </label>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {PAPER_COLORS.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setColor(c.id)}
-                    className={`h-6 w-6 rounded-md border-2 transition-transform hover:scale-110 ${
-                      color === c.id ? "border-primary ring-2 ring-primary/40 scale-105" : "border-black/20"
-                    }`}
-                    style={{ backgroundColor: c.color }}
-                    title={c.label}
-                  />
-                ))}
-              </div>
-            </div>
+          {(() => {
+            const paperColorData = getPaperColorVariations(color);
+            const pinColorData = getPinColorVariations(pinColor);
 
-            {/* Pin Color */}
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
-                Pushpin Color
-              </label>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {PIN_COLORS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setPinColor(p.id)}
-                    className={`h-6 w-6 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center ${
-                      pinColor === p.id ? "border-primary ring-2 ring-primary/40 scale-105" : "border-white/60"
-                    }`}
-                    style={{ backgroundColor: p.color }}
-                    title={p.label}
-                  />
-                ))}
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                {/* Paper Color with variations & colorwheel */}
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-muted-foreground block">
+                    Paper Color
+                  </label>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {PAPER_COLORS.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setColor(c.id)}
+                        className={`h-6 w-6 rounded-md border-2 transition-transform hover:scale-110 cursor-pointer ${
+                          color === c.id ? "border-primary ring-2 ring-primary/40 scale-105" : "border-black/20"
+                        }`}
+                        style={{ backgroundColor: c.color }}
+                        title={c.label}
+                      />
+                    ))}
+                    {/* Custom Paper Colorwheel Picker */}
+                    <label
+                      className={`relative h-6 w-6 rounded-md border-2 transition-transform hover:scale-110 flex items-center justify-center cursor-pointer overflow-hidden ${
+                        !PAPER_COLORS.some((c) => c.id === color)
+                          ? "border-primary ring-2 ring-primary/40 scale-105"
+                          : "border-black/20"
+                      }`}
+                      style={{
+                        background: !PAPER_COLORS.some((c) => c.id === color)
+                          ? resolvePaperHexColor(color)
+                          : "conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #10b981, #3b82f6, #8b5cf6, #ec4899, #ef4444)",
+                      }}
+                      title="Pick custom paper color from colorwheel"
+                    >
+                      <input
+                        type="color"
+                        value={resolvePaperHexColor(color)}
+                        onChange={(e) => setColor(e.target.value)}
+                        className="sr-only"
+                      />
+                      <Palette className="h-3 w-3 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] pointer-events-none" />
+                    </label>
+                  </div>
+
+                  {/* Value-derived Paper Tone Variations (Requirement 2) */}
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] text-muted-foreground font-medium mr-1">Tones:</span>
+                    {paperColorData.variations.map((v, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setColor(v.hex)}
+                        className={`h-5 w-5 rounded border transition-all cursor-pointer ${
+                          resolvePaperHexColor(color).toLowerCase() === v.hex.toLowerCase()
+                            ? "ring-2 ring-primary scale-110 border-black/40"
+                            : "border-black/20 hover:scale-105"
+                        }`}
+                        style={{ backgroundColor: v.hex }}
+                        title={`${v.label} (${v.hex})`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pushpin Color with variations & colorwheel */}
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-muted-foreground block">
+                    Pushpin Color
+                  </label>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {PIN_COLORS.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setPinColor(p.id)}
+                        className={`h-6 w-6 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center cursor-pointer ${
+                          pinColor === p.id ? "border-primary ring-2 ring-primary/40 scale-105" : "border-black/20"
+                        }`}
+                        style={{ backgroundColor: p.color }}
+                        title={p.label}
+                      />
+                    ))}
+                    {/* Custom Pin Colorwheel Picker */}
+                    <label
+                      className={`relative h-6 w-6 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center cursor-pointer overflow-hidden ${
+                        !PIN_COLORS.some((p) => p.id === pinColor)
+                          ? "border-primary ring-2 ring-primary/40 scale-105"
+                          : "border-black/20"
+                      }`}
+                      style={{
+                        background: !PIN_COLORS.some((p) => p.id === pinColor)
+                          ? resolvePinHexColor(pinColor)
+                          : "conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #10b981, #3b82f6, #8b5cf6, #ec4899, #ef4444)",
+                      }}
+                      title="Pick custom pushpin color from colorwheel"
+                    >
+                      <input
+                        type="color"
+                        value={resolvePinHexColor(pinColor)}
+                        onChange={(e) => setPinColor(e.target.value)}
+                        className="sr-only"
+                      />
+                      <Palette className="h-3 w-3 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] pointer-events-none" />
+                    </label>
+                  </div>
+
+                  {/* Value-derived Pin Tone Variations */}
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] text-muted-foreground font-medium mr-1">Tones:</span>
+                    {pinColorData.variations.map((v, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setPinColor(v.hex)}
+                        className={`h-5 w-5 rounded-full border transition-all cursor-pointer ${
+                          resolvePinHexColor(pinColor).toLowerCase() === v.hex.toLowerCase()
+                            ? "ring-2 ring-primary scale-110 border-black/40"
+                            : "border-black/20 hover:scale-105"
+                        }`}
+                        style={{ backgroundColor: v.hex }}
+                        title={`${v.label} (${v.hex})`}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
 
           <DialogFooter className="pt-2 border-t">
             <Button type="button" variant="ghost" onClick={onClose} size="sm">

@@ -92,3 +92,31 @@
   background: hsl(var(--muted-foreground) / 0.4);
 }
 
+/* Subtle pendulum swing when dropping a pinned note on the Idea Board */
+@keyframes pinDropSwing {
+  0% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(2.6deg);
+  }
+  45% {
+    transform: rotate(-2deg);
+  }
+  70% {
+    transform: rotate(1deg);
+  }
+  88% {
+    transform: rotate(-0.4deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-pin-drop-swing {
+  transform-origin: 50% 4px;
+  animation: pinDropSwing 560ms ease-out forwards;
+}
+
+

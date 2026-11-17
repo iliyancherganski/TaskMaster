@@ -152,7 +152,8 @@ export default function TaskMasterPage() {
       } else {
         url.searchParams.delete("project");
       }
-      window.history.replaceState({}, "", url.pathname + url.search);
+      url.searchParams.delete("board");
+      window.history.pushState({}, "", url.pathname + url.search);
     }
   };
 
@@ -167,11 +168,13 @@ export default function TaskMasterPage() {
         url.searchParams.set("view", "ideas");
       } else if (mode === "folder") {
         url.searchParams.set("view", "folder");
+        url.searchParams.delete("board");
       } else {
         url.searchParams.delete("view");
         url.searchParams.delete("tab");
+        url.searchParams.delete("board");
       }
-      window.history.replaceState({}, "", url.pathname + url.search);
+      window.history.pushState({}, "", url.pathname + url.search);
     }
   };
 
@@ -208,16 +211,22 @@ export default function TaskMasterPage() {
       setEducationalConnections(eduData.connections);
       setEducationalTags(eduData.allTags);
 
-      // Restore saved project selection from localStorage if valid
+      // Restore project selection: URL ?project= takes priority, then localStorage
       if (typeof window !== "undefined") {
         try {
-          const savedProjectId = localStorage.getItem(STORAGE_KEY_PROJECT);
-          if (savedProjectId) {
-            if (savedProjectId === "all" || data.projects.some((p) => p.id === savedProjectId)) {
-              setSelectedProjectId(savedProjectId);
-            } else {
-              localStorage.setItem(STORAGE_KEY_PROJECT, "all");
-              setSelectedProjectId("all");
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlProj = urlParams.get("project");
+          if (urlProj && (urlProj === "all" || data.projects.some((p) => p.id === urlProj))) {
+            setSelectedProjectId(urlProj);
+          } else {
+            const savedProjectId = localStorage.getItem(STORAGE_KEY_PROJECT);
+            if (savedProjectId) {
+              if (savedProjectId === "all" || data.projects.some((p) => p.id === savedProjectId)) {
+                setSelectedProjectId(savedProjectId);
+              } else {
+                localStorage.setItem(STORAGE_KEY_PROJECT, "all");
+                setSelectedProjectId("all");
+              }
             }
           }
         } catch (e) {}
@@ -233,23 +242,29 @@ export default function TaskMasterPage() {
     loadData();
   }, []);
 
-  // Restore view mode and project from direct URL link parameters (?view=ideas&project=...)
+  // Restore view mode and project from direct URL link parameters (?view=ideas&project=...&board=...) and sync on browser Back/Forward
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const viewParam = params.get("view") || params.get("tab");
-    if (viewParam === "ideas" || viewParam === "idea-board") {
-      setViewMode("idea-board");
-    } else if (viewParam === "folder") {
-      setViewMode("folder");
-    } else if (viewParam === "kanban") {
-      setViewMode("kanban");
-    }
+    const syncFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      const viewParam = params.get("view") || params.get("tab");
+      if (viewParam === "ideas" || viewParam === "idea-board") {
+        setViewMode("idea-board");
+      } else if (viewParam === "folder") {
+        setViewMode("folder");
+      } else {
+        setViewMode("kanban");
+      }
 
-    const projParam = params.get("project");
-    if (projParam) {
-      setSelectedProjectId(projParam);
-    }
+      const projParam = params.get("project");
+      if (projParam) {
+        setSelectedProjectId(projParam);
+      }
+    };
+
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
   }, []);
 
   // Filter tasks based on search and selected filters
@@ -319,6 +334,11 @@ export default function TaskMasterPage() {
 
   // Navigate to Idea Board from Kanban task card lightbulb
   const handleNavigateToIdeaBoard = (taskId: string) => {
+    // Ensure task modal is closed cleanly when navigating
+    setIsModalOpen(false);
+    setEditingTask(null);
+    updateTaskUrl(null);
+
     const task = findTaskById(taskId);
     if (task?.Project_id && selectedProjectId !== task.Project_id) {
       handleSelectProject(task.Project_id);
@@ -928,6 +948,7 @@ export default function TaskMasterPage() {
                   linkTaskTrigger={linkTaskTrigger}
                   newBoardTrigger={newBoardTrigger}
                   targetTaskId={highlightTaskId}
+                  onTargetTaskHandled={() => setHighlightTaskId(null)}
                   onLinkedTasksChange={setLinkedTaskIds}
                 />
               )}

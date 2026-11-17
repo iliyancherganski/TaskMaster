@@ -407,6 +407,8 @@ CREATE TABLE IF NOT EXISTS public."IdeaNotes" (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     project_id UUID REFERENCES public."Projects"(id) ON DELETE CASCADE,
     board_id UUID REFERENCES public."IdeaBoards"(id) ON DELETE CASCADE,
+    sub_board_id UUID,
+    icon TEXT,
     type TEXT NOT NULL DEFAULT 'text',
     title TEXT NOT NULL DEFAULT 'New Idea',
     content TEXT DEFAULT '',
@@ -428,6 +430,8 @@ CREATE TABLE IF NOT EXISTS public."IdeaNotes" (
 );
 
 ALTER TABLE public."IdeaNotes" ADD COLUMN IF NOT EXISTS board_id UUID REFERENCES public."IdeaBoards"(id) ON DELETE CASCADE;
+ALTER TABLE public."IdeaNotes" ADD COLUMN IF NOT EXISTS sub_board_id UUID;
+ALTER TABLE public."IdeaNotes" ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE public."IdeaNotes" ADD COLUMN IF NOT EXISTS height DOUBLE PRECISION;
 ALTER TABLE public."IdeaNotes" ADD COLUMN IF NOT EXISTS is_scratched BOOLEAN DEFAULT FALSE;
 
